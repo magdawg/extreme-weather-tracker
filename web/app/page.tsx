@@ -26,6 +26,12 @@ import type { EventFeature, HazardType } from "@/lib/types";
 // deck.gl + maplibre touch window/WebGL, so the map is client-only.
 const MapView = dynamic(() => import("@/components/MapView"), { ssr: false });
 
+const DAY_MS = 86_400_000;
+// Playback sweeps the whole data domain in a fixed number of frames, so the
+// wall-clock speed stays steady regardless of how wide the date range is.
+const PLAYBACK_FRAMES = 200;
+const PLAYBACK_INTERVAL_MS = 120;
+
 // Track viewport "mobile-ness" outside React state so we can read it during
 // render without triggering a hydration mismatch. SSR/initial-hydration assume
 // not-mobile; after mount, the real media query takes over.
@@ -48,6 +54,7 @@ export default function Page() {
     new Set(SEVERITY_ORDER),
   );
   const [cutoffMs, setCutoffMs] = useState<number | null>(null); // null = show all
+  const [playing, setPlaying] = useState(false);
   const [windowMonths, setWindowMonths] = useState<number | null>(1); // default: last 1 month
   const [heatmap, setHeatmap] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -91,6 +98,35 @@ export default function Page() {
 
   const cutoff = cutoffMs ?? maxMs;
   const atNow = cutoff >= maxMs;
+
+  // Advance the cutoff toward "now" while playing, then stop on arrival.
+  useEffect(() => {
+    if (!playing) return;
+    const step = Math.max(DAY_MS, (maxMs - minMs) / PLAYBACK_FRAMES);
+    const id = setInterval(() => {
+      setCutoffMs((prev) => {
+        const next = (prev ?? maxMs) + step;
+        if (next >= maxMs) {
+          setPlaying(false);
+          return maxMs;
+        }
+        return next;
+      });
+    }, PLAYBACK_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [playing, minMs, maxMs]);
+
+  const togglePlay = () => {
+    // Pressing play at the end replays from the start of the data range.
+    if (!playing && cutoff >= maxMs) setCutoffMs(minMs);
+    setPlaying((p) => !p);
+  };
+
+  // Manually scrubbing the slider takes over from playback.
+  const handleCutoffChange = (ms: number) => {
+    setPlaying(false);
+    setCutoffMs(ms);
+  };
 
   // Lower bound when a "last X months" window is active (calendar months back
   // from the selected date); null means cumulative — no lower bound.
@@ -303,7 +339,9 @@ export default function Page() {
             minMs={minMs}
             maxMs={maxMs}
             valueMs={cutoff}
-            onChange={setCutoffMs}
+            onChange={handleCutoffChange}
+            playing={playing}
+            onTogglePlay={togglePlay}
           />
         )}
         <div className="mt-2 flex items-center justify-center">
