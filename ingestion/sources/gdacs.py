@@ -20,14 +20,17 @@ SEARCH in **monthly windows, one hazard type at a time**:
     busiest type, peak around ~250/month).
   - `eventlist=<TYPE>` restricts to a single type, so we never burn pages on
     the high-volume earthquake/volcano events we discard anyway.
-Routine 12h runs only window the last `lookback_days`; `backfill=True` walks
-every month back to BACKFILL_FROMDATE. Upserts are idempotent, so a backfill
-can be re-run safely.
+Routine 12h runs (`fetch`) only window the last `lookback_days`. Deep history
+comes from `fetch_backfill`, which walks back to BACKFILL_FROMDATE and yields
+one year at a time so the orchestrator can upsert incrementally rather than
+buffer years of events (and hold the DB connection idle) — see its docstring.
+Upserts are idempotent, so a backfill can be re-run or resumed safely.
 
 Docs / Swagger: https://www.gdacs.org/gdacsapi/swagger/index.html
 """
 from __future__ import annotations
 
+from collections.abc import Iterator
 from datetime import date, datetime, timedelta, timezone
 
 import requests
@@ -90,6 +93,31 @@ def fetch(lookback_days: int = 7, backfill: bool = False) -> list[Event]:
     return list(by_id.values())
 
 
+def fetch_backfill() -> Iterator[tuple[int, list[Event]]]:
+    """Deep history pull, yielded **one year at a time** instead of returned as
+    one giant list.
+
+    The orchestrator upserts each year as it arrives, so we never buffer five
+    years of events in memory and — critically — never hold the DB connection
+    open and idle through the ~minutes-long fetch of a year (Neon drops idle
+    connections, which used to kill the whole backfill at the final write).
+    Upserts are idempotent, so a run interrupted mid-history just resumes.
+    """
+    today = datetime.now(timezone.utc).date()
+    for year in range(BACKFILL_FROMDATE.year, today.year + 1):
+        win_from = max(BACKFILL_FROMDATE, date(year, 1, 1))
+        # Mirror _month_windows' exclusive-end semantics: through first-of-next-
+        # year, clamped to today for the current (partial) year.
+        win_to = today if year == today.year else date(year + 1, 1, 1)
+        print(f"[gdacs] backfilling SEARCH {year}…")
+        by_id: dict[str, Event] = {}
+        for feat in _fetch_search(win_from, win_to):
+            ev = _to_event(feat)
+            if ev:
+                by_id.setdefault(ev.source_event_id, ev)
+        yield year, list(by_id.values())
+
+
 def _month_windows(start: date, end: date) -> list[tuple[date, date]]:
     """Split [start, end] into [first-of-month, first-of-next-month] windows,
     clamped to the requested bounds. Windows may overlap an event's active
@@ -104,15 +132,13 @@ def _month_windows(start: date, end: date) -> list[tuple[date, date]]:
 
 
 def _fetch_search(fromdate: date, todate: date) -> list[dict]:
-    """Chunked SEARCH: one paginated query per (hazard type, month window)."""
+    """Chunked SEARCH: one paginated query per (hazard type, month window).
+
+    Backfill drives this one year at a time via fetch_backfill(); routine runs
+    pass a single recent window.
+    """
     features: list[dict] = []
-    windows = _month_windows(fromdate, todate)
-    seen_year: int | None = None
-    for win_start, win_end in windows:
-        if len(windows) > 12 and win_start.year != seen_year:
-            # Progress for long backfills; routine runs span a single window.
-            seen_year = win_start.year
-            print(f"[gdacs] backfilling SEARCH {win_start.year}…")
+    for win_start, win_end in _month_windows(fromdate, todate):
         for etype in TYPE_MAP:  # only the hazards we keep — skips EQ/VO volume
             features.extend(_fetch_search_window(etype, win_start, win_end))
     return features

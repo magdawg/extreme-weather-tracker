@@ -33,7 +33,16 @@ ON CONFLICT (source, source_event_id, hazard_type) DO UPDATE SET
 
 
 def connect(database_url: str):
-    return psycopg2.connect(database_url)
+    # Keepalives stop Neon (serverless) from silently dropping the socket while
+    # a connection is briefly idle between batches. Connections should still be
+    # short-lived — never held open across a long fetch (see run.py).
+    return psycopg2.connect(
+        database_url,
+        keepalives=1,
+        keepalives_idle=30,
+        keepalives_interval=10,
+        keepalives_count=5,
+    )
 
 
 def upsert_events(conn, events: Iterable[Event]) -> int:

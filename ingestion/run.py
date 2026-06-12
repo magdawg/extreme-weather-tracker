@@ -19,6 +19,27 @@ def run_gdacs(backfill: bool = False) -> list:
     return gdacs.fetch(lookback_days=config.LOOKBACK_DAYS, backfill=backfill)
 
 
+def _upsert(events: list) -> int:
+    """Open a short-lived connection, write, close. Never hold a connection
+    across a fetch — Neon drops idle connections."""
+    conn = db.connect(config.DATABASE_URL)
+    try:
+        return db.upsert_events(conn, events)
+    finally:
+        conn.close()
+
+
+def run_gdacs_backfill() -> int:
+    """Stream the deep-history pull year by year, upserting each as it lands so
+    a multi-year run never buffers everything or holds the connection idle."""
+    total = 0
+    for year, events in gdacs.fetch_backfill():
+        n = _upsert(events)
+        total += n
+        print(f"[gdacs] {year}: upserted {n} events ({total} so far)")
+    return total
+
+
 def run_firms(backfill: bool = False) -> list:
     key = config.require("FIRMS_MAP_KEY", config.FIRMS_MAP_KEY)
     return firms.fetch(
@@ -56,20 +77,20 @@ def main() -> int:
     config.require("DATABASE_URL", config.DATABASE_URL)
     selected = args.source or list(SOURCES)
 
-    conn = db.connect(config.DATABASE_URL)
     total = 0
-    try:
-        for name in selected:
-            started = time.time()
-            try:
+    for name in selected:
+        started = time.time()
+        try:
+            if name == "gdacs" and args.backfill:
+                # Streams + writes per year; connects per batch internally.
+                n = run_gdacs_backfill()
+            else:
                 events = SOURCES[name](backfill=args.backfill)
-                n = db.upsert_events(conn, events)
-                total += n
-                print(f"[{name}] upserted {n} events in {time.time() - started:.1f}s")
-            except Exception as exc:  # one source failing shouldn't kill the run
-                print(f"[{name}] FAILED: {exc}", file=sys.stderr)
-    finally:
-        conn.close()
+                n = _upsert(events)
+            total += n
+            print(f"[{name}] upserted {n} events in {time.time() - started:.1f}s")
+        except Exception as exc:  # one source failing shouldn't kill the run
+            print(f"[{name}] FAILED: {exc}", file=sys.stderr)
 
     print(f"Done. {total} events upserted across {len(selected)} source(s).")
     return 0
