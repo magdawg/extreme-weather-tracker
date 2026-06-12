@@ -9,6 +9,7 @@ import SourceFilter from "@/components/SourceFilter";
 import Section from "@/components/Section";
 import TimeSlider from "@/components/TimeSlider";
 import WindowSelect from "@/components/WindowSelect";
+import MonthPicker from "@/components/MonthPicker";
 import SpeedSelect from "@/components/SpeedSelect";
 import Legend from "@/components/Legend";
 import AboutDialog from "@/components/AboutDialog";
@@ -59,6 +60,8 @@ export default function Page() {
   const [playing, setPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [windowMonths, setWindowMonths] = useState<number | null>(1); // default: last 1 month
+  // When set, view exactly this calendar month (overrides slider/window/play).
+  const [monthFilter, setMonthFilter] = useState<{ year: number; month: number } | null>(null);
   const [heatmap, setHeatmap] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -102,6 +105,31 @@ export default function Page() {
   const cutoff = cutoffMs ?? maxMs;
   const atNow = cutoff >= maxMs;
 
+  // Years spanned by the data, for the month-comparison picker.
+  const years = useMemo(() => {
+    const start = new Date(minMs).getFullYear();
+    const end = new Date(maxMs).getFullYear();
+    const out: number[] = [];
+    for (let y = start; y <= end; y++) out.push(y);
+    return out;
+  }, [minMs, maxMs]);
+
+  // Half-open [start, end) bounds of the selected calendar month, or null.
+  const monthRange = useMemo(() => {
+    if (!monthFilter) return null;
+    return {
+      start: new Date(monthFilter.year, monthFilter.month, 1).getTime(),
+      end: new Date(monthFilter.year, monthFilter.month + 1, 1).getTime(),
+    };
+  }, [monthFilter]);
+
+  // Pinning a month is incompatible with the scrubbing/playback timeline, so
+  // stop playback when one is selected.
+  const handleMonthChange = (v: { year: number; month: number } | null) => {
+    if (v) setPlaying(false);
+    setMonthFilter(v);
+  };
+
   // Advance the cutoff toward "now" while playing, then stop on arrival.
   useEffect(() => {
     if (!playing) return;
@@ -141,20 +169,25 @@ export default function Page() {
     return d.getTime();
   }, [cutoff, windowMonths]);
 
-  // Reveal events chronologically up to the selected date; if a window is set,
-  // also clip off anything older than `lowerMs`.
+  // A pinned month shows exactly that calendar month and ignores the slider /
+  // window. Otherwise, reveal events chronologically up to the selected date;
+  // if a window is set, also clip off anything older than `lowerMs`.
   const timeFiltered = useMemo(
     () =>
       features.filter((f) => {
         const s = f.properties.started_at
           ? new Date(f.properties.started_at).getTime()
           : null;
+        if (monthRange) {
+          // Undated events can't be placed in a specific month.
+          return s !== null && s >= monthRange.start && s < monthRange.end;
+        }
         // Undated events can't be placed in a finite window.
         if (s === null) return atNow && lowerMs === null;
         if (s > cutoff) return false;
         return lowerMs === null || s >= lowerMs;
       }),
-    [features, cutoff, atNow, lowerMs],
+    [features, cutoff, atNow, lowerMs, monthRange],
   );
 
   // Source counts reflect the time window only — so toggling a source off
@@ -338,7 +371,7 @@ export default function Page() {
 
       {/* Bottom time slider */}
       <div className="absolute bottom-4 left-1/2 z-10 w-[min(640px,90vw)] -translate-x-1/2 rounded-xl border border-white/10 bg-[#0b1020]/85 px-4 py-3 backdrop-blur">
-        {!loading && (
+        {!loading && monthFilter === null && (
           <TimeSlider
             minMs={minMs}
             maxMs={maxMs}
@@ -349,12 +382,25 @@ export default function Page() {
           />
         )}
         <div className="mt-2 flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
-          <WindowSelect value={windowMonths} onChange={setWindowMonths} />
-          <SpeedSelect value={playbackSpeed} onChange={setPlaybackSpeed} />
+          <MonthPicker value={monthFilter} years={years} onChange={handleMonthChange} />
+          {monthFilter === null && (
+            <>
+              <WindowSelect value={windowMonths} onChange={setWindowMonths} />
+              <SpeedSelect value={playbackSpeed} onChange={setPlaybackSpeed} />
+            </>
+          )}
         </div>
         <div className="mt-1 text-center text-xs opacity-50">
           {loading ? (
             "Loading events…"
+          ) : monthFilter ? (
+            <>
+              Showing {visible.length.toLocaleString()} events in{" "}
+              {new Date(monthFilter.year, monthFilter.month, 1).toLocaleDateString(
+                undefined,
+                { month: "long", year: "numeric" },
+              )}
+            </>
           ) : (
             <>
               Showing {visible.length.toLocaleString()} events
