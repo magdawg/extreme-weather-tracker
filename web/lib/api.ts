@@ -10,7 +10,7 @@ export async function fetchEvents(params?: {
   const q = new URLSearchParams();
   if (params?.from) q.set("from", params.from);
   if (params?.to) q.set("to", params.to);
-  q.set("limit", String(params?.limit ?? 15000));
+  q.set("limit", String(params?.limit ?? 50000));
 
   const res = await fetch(`${API_URL}/events?${q.toString()}`);
   if (!res.ok) throw new Error(`API /events ${res.status}`);

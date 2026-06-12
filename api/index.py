@@ -14,7 +14,7 @@ from typing import Optional
 
 import psycopg2
 import psycopg2.pool
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
@@ -63,14 +63,23 @@ def health():
 
 @app.get("/events")
 def events(
+    response: Response,
     hazard: Optional[str] = Query(None, description="comma-separated hazard types"),
     from_: Optional[datetime] = Query(None, alias="from"),
     to: Optional[datetime] = Query(None),
     bbox: Optional[str] = Query(None, description="west,south,east,north"),
     min_intensity: float = Query(0.0, ge=0.0, le=1.0),
-    limit: int = Query(5000, ge=1, le=20000),
+    limit: int = Query(50000, ge=1, le=50000),
 ):
     """Return matching events as a GeoJSON FeatureCollection."""
+    # Ingestion runs every 12h, so the dataset changes slowly. Let Vercel's
+    # edge cache the response for 10 min (s-maxage), and serve stale up to
+    # 1h while it revalidates. Browsers get a short 60s cache so reloads
+    # within the same session are instant without going to the network.
+    response.headers["Cache-Control"] = (
+        "public, max-age=60, s-maxage=600, stale-while-revalidate=3600"
+    )
+
     where = ["geom IS NOT NULL", "intensity_norm >= %s"]
     params: list = [min_intensity]
 
@@ -94,13 +103,17 @@ def events(
         params.extend([w, s, e, n])
 
     params.append(limit)
+    # Order by recency so that any truncation drops the oldest events
+    # deterministically (predictable for the time slider). We omit unused
+    # columns (id, ended_at, url, metadata) to keep the payload small —
+    # the map only needs what the tooltip and filters read.
     sql = f"""
-        SELECT id, source, hazard_type, title, severity_raw, intensity_norm,
-               started_at, ended_at, country, url, metadata,
+        SELECT source, hazard_type, title, severity_raw, intensity_norm,
+               started_at, country,
                ST_AsGeoJSON(geom) AS geojson
         FROM events
         WHERE {' AND '.join(where)}
-        ORDER BY intensity_norm DESC NULLS LAST, started_at DESC NULLS LAST
+        ORDER BY started_at DESC NULLS LAST
         LIMIT %s
     """
     rows = query(sql, tuple(params))
@@ -110,17 +123,13 @@ def events(
             "type": "Feature",
             "geometry": json.loads(r["geojson"]),
             "properties": {
-                "id": r["id"],
                 "source": r["source"],
                 "hazard_type": r["hazard_type"],
                 "title": r["title"],
                 "severity_raw": r["severity_raw"],
                 "intensity_norm": r["intensity_norm"],
                 "started_at": r["started_at"].isoformat() if r["started_at"] else None,
-                "ended_at": r["ended_at"].isoformat() if r["ended_at"] else None,
                 "country": r["country"],
-                "url": r["url"],
-                "metadata": r["metadata"],
             },
         }
         for r in rows
@@ -129,8 +138,11 @@ def events(
 
 
 @app.get("/stats")
-def stats():
+def stats(response: Response):
     """Counts and mean intensity per hazard — powers the 'scale of the problem' panel."""
+    response.headers["Cache-Control"] = (
+        "public, max-age=60, s-maxage=600, stale-while-revalidate=3600"
+    )
     rows = query(
         """
         SELECT hazard_type,

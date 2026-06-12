@@ -6,17 +6,13 @@ export type HazardType =
   | "drought";
 
 export interface EventProperties {
-  id: number;
   source: string;
   hazard_type: HazardType;
   title: string | null;
   severity_raw: string | null;
   intensity_norm: number | null;
   started_at: string | null;
-  ended_at: string | null;
   country: string | null;
-  url: string | null;
-  metadata: Record<string, unknown>;
 }
 
 export interface EventFeature {
