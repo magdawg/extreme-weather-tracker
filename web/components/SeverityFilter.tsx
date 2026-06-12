@@ -1,6 +1,7 @@
 "use client";
 
 import { SEVERITIES, SEVERITY_ORDER } from "@/lib/severity";
+import { FOCUS } from "@/lib/ui";
 import type { Severity } from "@/lib/severity";
 
 export default function SeverityFilter({
@@ -15,7 +16,7 @@ export default function SeverityFilter({
   loading?: boolean;
 }) {
   return (
-    <div className="flex gap-1">
+    <div className="grid grid-cols-3 gap-1 rounded-lg bg-black/20 p-1 ring-1 ring-white/10">
       {SEVERITY_ORDER.map((s) => {
         const on = active.has(s);
         const meta = SEVERITIES[s];
@@ -24,21 +25,32 @@ export default function SeverityFilter({
           <button
             key={s}
             onClick={() => onToggle(s)}
+            aria-pressed={on}
             title={
-              loading ? meta.label : `${meta.label} — ${count.toLocaleString()} events`
+              loading
+                ? meta.label
+                : `${meta.label} — ${count.toLocaleString()} events`
             }
-            className={`flex flex-1 flex-col items-center gap-0.5 rounded-md px-1 py-1.5 text-center transition ${
-              on ? "bg-white/15" : "opacity-40 hover:opacity-70"
+            className={`flex cursor-pointer flex-col items-center gap-1 rounded-md px-1 py-1.5 text-center transition ${FOCUS} ${
+              on ? "bg-white/15 shadow-sm" : "hover:bg-white/5"
             }`}
           >
-            <span className="flex items-center gap-1 text-[11px] leading-none">
+            <span
+              className={`flex items-center gap-1.5 text-[11px] font-medium leading-none transition-colors ${
+                on ? "text-white" : "text-white/50"
+              }`}
+            >
               <span
-                className="inline-block h-2 w-2 rounded-full"
-                style={{ background: meta.hex }}
+                className="inline-block h-2 w-2 rounded-full ring-1 ring-black/20"
+                style={{ background: meta.hex, opacity: on ? 1 : 0.55 }}
               />
               {meta.label}
             </span>
-            <span className="tabular-nums text-[10px] opacity-60">
+            <span
+              className={`tabular-nums text-[10px] transition-colors ${
+                on ? "text-white/60" : "text-white/35"
+              }`}
+            >
               {loading ? "—" : count.toLocaleString()}
             </span>
           </button>

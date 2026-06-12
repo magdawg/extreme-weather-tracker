@@ -1,5 +1,8 @@
 "use client";
 
+import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon } from "@/components/icons";
+import { FOCUS } from "@/lib/ui";
+
 // Toggles a single-calendar-month view. Off by default — the time slider +
 // window drive the time filter. Clicking the calendar button pins one month;
 // while pinned the ‹ › arrows step the year (month fixed), so the same month
@@ -10,30 +13,9 @@ const MONTHS = [
   "July", "August", "September", "October", "November", "December",
 ];
 
-const SELECT_CLASS =
-  "rounded-md bg-white/10 px-1.5 py-0.5 text-xs text-white tabular-nums transition hover:bg-white/15 focus:outline-none [&>option]:text-black";
+const SELECT_CLASS = `cursor-pointer rounded-md bg-white/10 px-2 py-1 text-xs text-white tabular-nums transition hover:bg-white/15 [&>option]:text-black ${FOCUS}`;
 
-function CalendarIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden>
-      <rect
-        x="1.5"
-        y="2.5"
-        width="11"
-        height="10"
-        rx="1.5"
-        stroke="currentColor"
-        strokeWidth="1.3"
-      />
-      <path
-        d="M1.5 5.5h11M4.5 1v2.5M9.5 1v2.5"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
+const STEP_CLASS = `flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-white/55 transition enabled:hover:bg-white/10 enabled:hover:text-white disabled:opacity-20 ${FOCUS}`;
 
 export default function MonthPicker({
   value,
@@ -52,9 +34,9 @@ export default function MonthPicker({
       <button
         onClick={() => onChange(defaultMonth)}
         title="View a single calendar month"
-        className="flex items-center gap-1.5 rounded-md bg-white/10 px-2 py-1 text-xs text-white transition hover:bg-white/15"
+        className={`flex cursor-pointer items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs font-medium text-white/80 transition hover:bg-white/10 hover:text-white ${FOCUS}`}
       >
-        <CalendarIcon />
+        <CalendarIcon size={14} />
         Month view
       </button>
     );
@@ -78,9 +60,6 @@ export default function MonthPicker({
     if (y >= minYear && y <= maxYear) onChange({ year: y, month });
   };
 
-  const ARROW_CLASS =
-    "rounded px-1 text-xs opacity-60 transition enabled:hover:opacity-100 disabled:opacity-20";
-
   return (
     <div className="flex items-center gap-2">
       <button
@@ -88,19 +67,19 @@ export default function MonthPicker({
         aria-pressed="true"
         aria-label="Exit month view"
         title="Exit month view"
-        className="flex h-6 w-6 items-center justify-center rounded-md bg-indigo-500/30 text-indigo-200 transition hover:bg-indigo-500/40"
+        className={`flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg border border-indigo-400/40 bg-indigo-500/25 text-indigo-100 transition hover:bg-indigo-500/35 ${FOCUS}`}
       >
-        <CalendarIcon />
+        <CalendarIcon size={14} />
       </button>
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-0.5">
         <button
           onClick={() => stepMonth(-1)}
           disabled={year <= minYear && month <= 0}
           aria-label="Previous month"
           title="Previous month"
-          className={ARROW_CLASS}
+          className={STEP_CLASS}
         >
-          ‹
+          <ChevronLeftIcon size={14} />
         </button>
         <select
           value={month}
@@ -119,20 +98,20 @@ export default function MonthPicker({
           disabled={year >= maxYear && month >= 11}
           aria-label="Next month"
           title="Next month"
-          className={ARROW_CLASS}
+          className={STEP_CLASS}
         >
-          ›
+          <ChevronRightIcon size={14} />
         </button>
       </div>
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-0.5">
         <button
           onClick={() => stepYear(-1)}
           disabled={year <= minYear}
           aria-label="Previous year"
           title="Previous year (same month)"
-          className={ARROW_CLASS}
+          className={STEP_CLASS}
         >
-          ‹
+          <ChevronLeftIcon size={14} />
         </button>
         <select
           value={year}
@@ -151,9 +130,9 @@ export default function MonthPicker({
           disabled={year >= maxYear}
           aria-label="Next year"
           title="Next year (same month)"
-          className={ARROW_CLASS}
+          className={STEP_CLASS}
         >
-          ›
+          <ChevronRightIcon size={14} />
         </button>
       </div>
     </div>

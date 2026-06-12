@@ -1,6 +1,7 @@
 "use client";
 
 import { SOURCES, SOURCE_ORDER } from "@/lib/sources";
+import { listRow } from "@/lib/ui";
 import type { SourceId } from "@/lib/sources";
 
 export default function SourceFilter({
@@ -15,7 +16,7 @@ export default function SourceFilter({
   loading?: boolean;
 }) {
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-1">
       {SOURCE_ORDER.map((s) => {
         const meta = SOURCES[s];
         const on = active.has(s);
@@ -23,17 +24,22 @@ export default function SourceFilter({
           <button
             key={s}
             onClick={() => onToggle(s)}
+            aria-pressed={on}
             title={meta.description}
-            className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition ${
-              on ? "bg-white/10" : "opacity-40 hover:opacity-70"
-            }`}
+            className={listRow(on)}
           >
-            <span className="inline-flex h-3 w-3 items-center justify-center rounded-full border border-white/30 text-[8px] font-semibold leading-none">
+            <span
+              className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-[9px] font-semibold leading-none ring-1 transition-colors ${
+                on
+                  ? "bg-indigo-400/15 text-indigo-200 ring-indigo-300/30"
+                  : "text-white/50 ring-white/15"
+              }`}
+            >
               {meta.mark}
             </span>
             <span className="flex-1">{meta.label}</span>
-            <span className="tabular-nums text-xs opacity-60">
-              {loading ? "—" : (counts[s] ?? 0)}
+            <span className="tabular-nums text-xs text-white/45">
+              {loading ? "—" : (counts[s] ?? 0).toLocaleString()}
             </span>
           </button>
         );

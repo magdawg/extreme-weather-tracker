@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { ChevronDownIcon } from "@/components/icons";
+import { FOCUS } from "@/lib/ui";
 
 export default function Section({
   title,
@@ -17,25 +19,13 @@ export default function Section({
       <button
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="flex w-full items-center justify-between py-1 text-left text-xs font-medium uppercase tracking-wide opacity-70 transition hover:opacity-100"
+        className={`-mx-1 flex w-[calc(100%+0.5rem)] cursor-pointer items-center justify-between rounded-md px-1 py-1 text-left text-[11px] font-semibold uppercase tracking-wider text-white/55 transition hover:text-white/90 ${FOCUS}`}
       >
         <span>{title}</span>
-        <svg
-          width="10"
-          height="10"
-          viewBox="0 0 10 10"
-          className={`transition-transform ${open ? "" : "-rotate-90"}`}
-          aria-hidden
-        >
-          <path
-            d="M1 3 L5 7 L9 3"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
+        <ChevronDownIcon
+          size={14}
+          className={`text-white/40 transition-transform ${open ? "" : "-rotate-90"}`}
+        />
       </button>
       {open && <div className="mt-2">{children}</div>}
     </div>

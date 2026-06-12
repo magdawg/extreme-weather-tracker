@@ -2,6 +2,9 @@
 
 import { useEffect } from "react";
 
+import { CloseIcon, GlobeIcon } from "@/components/icons";
+import { FOCUS } from "@/lib/ui";
+
 export default function AboutDialog({ onClose }: { onClose: () => void }) {
   // Close on Escape for keyboard users.
   useEffect(() => {
@@ -27,12 +30,15 @@ export default function AboutDialog({ onClose }: { onClose: () => void }) {
         <button
           onClick={onClose}
           aria-label="Close"
-          className="absolute right-4 top-4 flex h-7 w-7 items-center justify-center rounded-full text-lg opacity-50 transition hover:bg-white/10 hover:opacity-100"
+          className={`absolute right-4 top-4 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-white/55 transition hover:bg-white/10 hover:text-white ${FOCUS}`}
         >
-          ×
+          <CloseIcon size={18} />
         </button>
 
-        <h2 className="text-lg font-semibold">🌍 About this map</h2>
+        <h2 className="flex items-center gap-2 text-lg font-semibold">
+          <GlobeIcon size={20} className="text-indigo-300" />
+          About this map
+        </h2>
         <p className="mt-2 text-sm leading-relaxed opacity-80">
           The Extreme Weather Tracker is a live world map of storms, floods,
           wildfires, droughts, and extreme heat. It&apos;s a place to

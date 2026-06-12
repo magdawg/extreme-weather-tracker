@@ -1,5 +1,8 @@
 "use client";
 
+import { ICON_BTN, FOCUS } from "@/lib/ui";
+import { PlayIcon, PauseIcon } from "@/components/icons";
+
 const DAY_MS = 86_400_000;
 
 function fmt(ms: number) {
@@ -26,6 +29,13 @@ export default function TimeSlider({
   onTogglePlay: () => void;
 }) {
   const atNow = valueMs >= maxMs;
+  // Percentage of the range covered, used to paint the filled portion of the
+  // rail behind the thumb.
+  const pct =
+    maxMs > minMs
+      ? Math.min(100, Math.max(0, ((valueMs - minMs) / (maxMs - minMs)) * 100))
+      : 0;
+
   return (
     <div className="flex items-center gap-3">
       <button
@@ -33,20 +43,19 @@ export default function TimeSlider({
         aria-label={playing ? "Pause playback" : "Play forward in time"}
         aria-pressed={playing}
         title={playing ? "Pause" : "Play forward in time"}
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/90 transition hover:bg-white/10"
+        className={`h-9 w-9 ${ICON_BTN} ${
+          playing
+            ? "border-indigo-400/40 bg-indigo-500/25 text-indigo-100 hover:bg-indigo-500/35"
+            : ""
+        }`}
       >
-        {playing ? (
-          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
-            <rect x="2" y="1.5" width="3" height="9" rx="1" fill="currentColor" />
-            <rect x="7" y="1.5" width="3" height="9" rx="1" fill="currentColor" />
-          </svg>
-        ) : (
-          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
-            <path d="M3 1.5 L10 6 L3 10.5 Z" fill="currentColor" />
-          </svg>
-        )}
+        {playing ? <PauseIcon size={15} /> : <PlayIcon size={15} />}
       </button>
-      <span className="w-20 text-xs opacity-60">{fmt(minMs)}</span>
+
+      <span className="w-[4.5rem] shrink-0 text-xs tabular-nums text-white/45">
+        {fmt(minMs)}
+      </span>
+
       <input
         type="range"
         min={minMs}
@@ -54,9 +63,18 @@ export default function TimeSlider({
         step={DAY_MS}
         value={valueMs}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="flex-1 accent-indigo-400"
+        aria-label="Show events up to date"
+        className={`ewt-range flex-1 ${FOCUS}`}
+        style={{
+          background: `linear-gradient(to right, #6366f1 ${pct}%, rgba(255,255,255,0.12) ${pct}%)`,
+        }}
       />
-      <span className="w-20 text-right text-xs tabular-nums opacity-80">
+
+      <span
+        className={`w-[4.5rem] shrink-0 text-right text-xs tabular-nums ${
+          atNow ? "font-semibold text-indigo-200" : "text-white/80"
+        }`}
+      >
         {atNow ? "Now" : fmt(valueMs)}
       </span>
     </div>

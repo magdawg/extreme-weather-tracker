@@ -13,6 +13,8 @@ import MonthPicker from "@/components/MonthPicker";
 import SpeedSelect from "@/components/SpeedSelect";
 import Legend from "@/components/Legend";
 import AboutDialog from "@/components/AboutDialog";
+import { GlobeIcon, InfoIcon, ChevronDownIcon } from "@/components/icons";
+import { PANEL, ICON_BTN, FOCUS } from "@/lib/ui";
 import { fetchEvents } from "@/lib/api";
 import { HAZARD_ORDER } from "@/lib/hazards";
 import {
@@ -288,16 +290,16 @@ export default function Page() {
         onClick={() => setAboutOpen(true)}
         aria-label="About this project"
         title="About this project"
-        className="absolute bottom-4 left-4 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-[#0b1020]/85 text-lg font-bold backdrop-blur transition hover:bg-[#0b1020] opacity-80 hover:opacity-100"
+        className={`absolute bottom-4 left-4 z-10 h-10 w-10 backdrop-blur-md ${ICON_BTN}`}
       >
-        ?
+        <InfoIcon size={18} />
       </button>
 
       {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
 
       {/* Left control panel */}
       <div
-        className={`absolute left-4 top-4 z-10 flex w-72 max-w-[calc(100vw-2rem)] flex-col rounded-xl border border-white/10 bg-[#0b1020]/85 backdrop-blur ${
+        className={`ewt-scroll absolute left-4 top-4 z-10 flex w-72 max-w-[calc(100vw-2rem)] flex-col ${PANEL} ${
           panelOpen ? "max-h-[calc(100vh-2rem)] overflow-y-auto p-4" : "px-4 py-3"
         }`}
       >
@@ -305,31 +307,22 @@ export default function Page() {
           onClick={() => setPanelOpenOverride(!panelOpen)}
           aria-expanded={panelOpen}
           aria-controls="panel-body"
-          className="-mx-1 flex items-center justify-between gap-2 rounded px-1 py-0.5 text-left transition hover:opacity-90"
+          className={`-mx-1 flex items-center justify-between gap-2 rounded-lg px-1 py-0.5 text-left transition hover:bg-white/5 ${FOCUS}`}
         >
-          <h1 className="text-base font-semibold">🌍 Extreme Weather Tracker</h1>
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 10 10"
-            className={`shrink-0 opacity-70 transition-transform ${panelOpen ? "" : "-rotate-90"}`}
-            aria-hidden
-          >
-            <path
-              d="M1 3 L5 7 L9 3"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
+          <h1 className="flex items-center gap-2 text-base font-semibold tracking-tight">
+            <GlobeIcon size={18} className="shrink-0 text-indigo-300" />
+            Extreme Weather Tracker
+          </h1>
+          <ChevronDownIcon
+            size={14}
+            className={`shrink-0 text-white/45 transition-transform ${panelOpen ? "" : "-rotate-90"}`}
+          />
         </button>
 
         {panelOpen && (
           <div id="panel-body">
-            <p className="mt-0.5 text-xs opacity-60">
-              Patterns, transitions & intensity of extreme weather worldwide.
+            <p className="mt-1 text-xs leading-relaxed text-white/55">
+              Patterns, transitions &amp; intensity of extreme weather worldwide.
             </p>
 
             <div className="my-3 h-px bg-white/10" />
@@ -364,15 +357,26 @@ export default function Page() {
 
             <div className="my-3 h-px bg-white/10" />
             <Section title="Display" defaultOpen={false}>
-              <label className="flex cursor-pointer items-center justify-between text-sm">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={heatmap}
+                onClick={() => setHeatmap((v) => !v)}
+                className={`flex w-full cursor-pointer items-center justify-between rounded-lg px-1 py-1 text-sm text-white/85 transition hover:text-white ${FOCUS}`}
+              >
                 <span>Heatmap view</span>
-                <input
-                  type="checkbox"
-                  checked={heatmap}
-                  onChange={(e) => setHeatmap(e.target.checked)}
-                  className="accent-indigo-400"
-                />
-              </label>
+                <span
+                  className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                    heatmap ? "bg-indigo-500" : "bg-white/15"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                      heatmap ? "translate-x-4" : "translate-x-0.5"
+                    }`}
+                  />
+                </span>
+              </button>
               <div className="mt-3">
                 <Legend />
               </div>
@@ -382,7 +386,7 @@ export default function Page() {
       </div>
 
       {/* Bottom time slider */}
-      <div className="absolute bottom-4 left-1/2 z-10 w-[min(640px,90vw)] -translate-x-1/2 rounded-xl border border-white/10 bg-[#0b1020]/85 px-4 py-3 backdrop-blur">
+      <div className={`absolute bottom-4 left-1/2 z-10 w-[min(640px,90vw)] -translate-x-1/2 px-4 py-3 ${PANEL}`}>
         {!loading && monthFilter === null && (
           <TimeSlider
             minMs={minMs}
@@ -393,7 +397,7 @@ export default function Page() {
             onTogglePlay={togglePlay}
           />
         )}
-        <div className="mt-2 flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
           <MonthPicker
             value={monthFilter}
             years={years}
@@ -407,7 +411,7 @@ export default function Page() {
             </>
           )}
         </div>
-        <div className="mt-1 text-center text-xs opacity-50">
+        <div className="mt-2 text-center text-xs tabular-nums text-white/45">
           {loading ? (
             "Loading events…"
           ) : monthFilter ? (
@@ -434,9 +438,9 @@ export default function Page() {
       {/* Status overlays */}
       {loading && (
         <div className="pointer-events-none absolute inset-x-0 top-1/2 z-20 flex -translate-y-1/2 items-center justify-center">
-          <div className="flex items-center gap-2 rounded-full border border-white/10 bg-[#0b1020]/85 px-4 py-2 text-sm opacity-90 backdrop-blur">
+          <div className={`flex items-center gap-2.5 rounded-full px-4 py-2 text-sm text-white/90 ${PANEL}`}>
             <span
-              className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white/90"
+              className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/25 border-t-indigo-300"
               aria-hidden="true"
             />
             Loading events…
@@ -444,7 +448,7 @@ export default function Page() {
         </div>
       )}
       {error && (
-        <div className="absolute left-1/2 top-20 z-20 -translate-x-1/2 rounded-lg bg-red-500/20 px-4 py-2 text-sm text-red-200">
+        <div className="absolute left-1/2 top-20 z-20 max-w-[min(420px,90vw)] -translate-x-1/2 rounded-xl border border-red-400/30 bg-red-500/15 px-4 py-3 text-sm leading-relaxed text-red-200 shadow-lg shadow-black/30 backdrop-blur-md">
           Could not load data: {error}. Is the API running at{" "}
           {process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}?
         </div>

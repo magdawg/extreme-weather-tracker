@@ -1,5 +1,7 @@
 "use client";
 
+import { SEGMENT, segmentBtn } from "@/lib/ui";
+
 // A number restricts to that many months counted back from the selected date.
 // (`null` still means cumulative, but is no longer offered as a preset now that
 // the dataset is backfilled to 2021 and loading everything is expensive.)
@@ -19,22 +21,23 @@ export default function WindowSelect({
 }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="text-xs opacity-60">Window</span>
-      <div className="flex gap-1">
+      <span className="text-[11px] font-medium uppercase tracking-wide text-white/45">
+        Window
+      </span>
+      <div className={SEGMENT}>
         {WINDOW_OPTIONS.map((o) => {
           const on = value === o.months;
           return (
             <button
               key={o.label}
               onClick={() => onChange(o.months)}
+              aria-pressed={on}
               title={
                 o.months === null
                   ? "All events up to the selected date"
                   : `Only events within ${o.months} month${o.months > 1 ? "s" : ""} before the selected date`
               }
-              className={`rounded-md px-2 py-0.5 text-xs tabular-nums transition ${
-                on ? "bg-white/15" : "opacity-50 hover:opacity-80"
-              }`}
+              className={segmentBtn(on)}
             >
               {o.label}
             </button>
