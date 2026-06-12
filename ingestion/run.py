@@ -1,7 +1,8 @@
 """Ingestion orchestrator — run by GitHub Actions every 12h (or locally).
 
-    python run.py              # all sources
+    python run.py                       # all sources, routine recent window
     python run.py --source gdacs firms
+    python run.py --source gdacs --backfill   # one-shot GDACS history back to 2021
 """
 from __future__ import annotations
 
@@ -14,11 +15,11 @@ import db
 from sources import firms, gdacs, temperature
 
 
-def run_gdacs() -> list:
-    return gdacs.fetch(lookback_days=config.LOOKBACK_DAYS)
+def run_gdacs(backfill: bool = False) -> list:
+    return gdacs.fetch(lookback_days=config.LOOKBACK_DAYS, backfill=backfill)
 
 
-def run_firms() -> list:
+def run_firms(backfill: bool = False) -> list:
     key = config.require("FIRMS_MAP_KEY", config.FIRMS_MAP_KEY)
     return firms.fetch(
         map_key=key,
@@ -30,7 +31,7 @@ def run_firms() -> list:
     )
 
 
-def run_temperature() -> list:
+def run_temperature(backfill: bool = False) -> list:
     return temperature.fetch(lookback_days=config.LOOKBACK_DAYS)
 
 
@@ -44,6 +45,12 @@ SOURCES = {
 def main() -> int:
     parser = argparse.ArgumentParser(description="Extreme weather ingestion")
     parser.add_argument("--source", nargs="*", choices=list(SOURCES), help="subset of sources")
+    parser.add_argument(
+        "--backfill",
+        action="store_true",
+        help="GDACS only: one-shot deep history pull back to 2021 (idempotent). "
+        "Other sources ignore it.",
+    )
     args = parser.parse_args()
 
     config.require("DATABASE_URL", config.DATABASE_URL)
@@ -55,7 +62,7 @@ def main() -> int:
         for name in selected:
             started = time.time()
             try:
-                events = SOURCES[name]()
+                events = SOURCES[name](backfill=args.backfill)
                 n = db.upsert_events(conn, events)
                 total += n
                 print(f"[{name}] upserted {n} events in {time.time() - started:.1f}s")

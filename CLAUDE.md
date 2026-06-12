@@ -33,6 +33,7 @@ MapLibre + deck.gl). See `AGENTS.md` and `ARCHITECTURE.md` for detail.
 # ingestion (from ingestion/, venv active)
 python run.py                    # all sources
 python run.py --source gdacs     # one source: gdacs | firms | temperature
+python run.py --source gdacs --backfill   # one-shot GDACS history back to 2021 (idempotent)
 
 # api (from api/, venv active)
 DATABASE_URL=… uvicorn index:app --reload     # localhost:8000
