@@ -7,7 +7,7 @@ everything substantive. Read this first.
 ## What this is
 
 A live world map of extreme weather events — **storms, floods, wildfires,
-extreme heat, extreme cold, drought** — built to show **patterns, transitions
+extreme heat, drought** — built to show **patterns, transitions
 and intensity** across the globe. Everything runs on **free tiers, no credit
 card**.
 
@@ -29,7 +29,7 @@ Every data source, no matter how different its raw format, is mapped onto a
 provider**. Two consequences you must preserve:
 
 1. **`hazard_type`** is from a fixed taxonomy: `storm | flood | wildfire | heat
-   | cold | drought`. This enum is duplicated in three places that must stay in
+   | drought`. This enum is duplicated in three places that must stay in
    sync — keep them identical:
    - `ingestion/normalize.py` (`HAZARD_*` constants)
    - `api/index.py` (`VALID_HAZARDS`)
@@ -147,8 +147,8 @@ frontend change is needed unless you introduce a new `hazard_type`.
   coarse ~1° grid (`FIRMS_GRID_DEG`) only exists to geocode each cell once rather
   than every pixel. Quiet country-days are dropped via `FIRMS_MIN_DETECTIONS` /
   `FIRMS_MIN_INTENSITY`.
-- **Heat/cold are *derived*, not a real feed.** `temperature.py` flags absolute
-  thresholds over a fixed city grid — a documented heuristic. The clean upgrade
+- **Heat is *derived*, not a real feed.** `temperature.py` flags an absolute
+  threshold over a fixed city grid — a documented heuristic. The clean upgrade
   (percentile-vs-climatology) is a TODO in that file; the rest of the pipeline
   doesn't change.
 - **The map is client-only.** `MapView` is loaded via `next/dynamic` with

@@ -15,7 +15,6 @@ HAZARD_STORM = "storm"
 HAZARD_FLOOD = "flood"
 HAZARD_WILDFIRE = "wildfire"
 HAZARD_HEAT = "heat"
-HAZARD_COLD = "cold"
 HAZARD_DROUGHT = "drought"
 
 

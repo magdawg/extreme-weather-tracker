@@ -35,7 +35,7 @@ export default function AboutDialog({ onClose }: { onClose: () => void }) {
         <h2 className="text-lg font-semibold">🌍 About this map</h2>
         <p className="mt-2 text-sm leading-relaxed opacity-80">
           The Extreme Weather Tracker is a live world map of storms, floods,
-          wildfires, droughts, and extreme heat and cold. It&apos;s a place to
+          wildfires, droughts, and extreme heat. It&apos;s a place to
           watch the <em>patterns</em>: where these events cluster, how they shift
           through the seasons, and how intense they get, all in one consistent
           view.
@@ -75,7 +75,7 @@ export default function AboutDialog({ onClose }: { onClose: () => void }) {
             , grouped into clusters.
           </li>
           <li>
-            <span className="opacity-90">Extreme heat &amp; cold</span>: derived
+            <span className="opacity-90">Extreme heat</span>: derived
             from{" "}
             <a
               href="https://open-meteo.com"

@@ -3,11 +3,10 @@ import type { EventFeature, EventProperties } from "./types";
 // Unified severity tiers. GDACS hands us an authoritative alert colour
 // (severity_raw = Green/Orange/Red), which maps 1:1 to the score bands on the
 // 0–3 GDACS scale: Green 0–1, Orange 1–2, Red 2–3. We trust that colour
-// directly. Sources without a colour (FIRMS wildfires, Open-Meteo heat/cold,
+// directly. Sources without a colour (FIRMS wildfires, Open-Meteo heat,
 // whose severity_raw is free text like "FRP 42 MW") fall back to bucketing the
 // normalized intensity by thirds — the same band boundaries, expressed as 0..1.
 export type Severity = "minor" | "moderate" | "severe";
-export type SeverityFilter = "all" | Severity;
 
 export interface SeverityMeta {
   label: string;
@@ -45,7 +44,9 @@ export function tierOf(props: EventProperties): Severity {
   return "severe";
 }
 
-export function matchesSeverity(f: EventFeature, filter: SeverityFilter): boolean {
-  if (filter === "all") return true;
-  return tierOf(f.properties) === filter;
+export function matchesSeverity(
+  f: EventFeature,
+  active: Set<Severity>,
+): boolean {
+  return active.has(tierOf(f.properties));
 }

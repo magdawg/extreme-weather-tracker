@@ -3,7 +3,6 @@
 export default function Legend() {
   return (
     <div className="text-xs leading-relaxed opacity-70">
-      <div className="mb-1 font-medium opacity-90">Intensity</div>
       <div className="flex items-center gap-2">
         <span className="inline-block h-2 w-2 rounded-full bg-white/60" />
         <div className="h-2 flex-1 rounded-full bg-gradient-to-r from-white/30 to-white/90" />

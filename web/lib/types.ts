@@ -3,7 +3,6 @@ export type HazardType =
   | "flood"
   | "wildfire"
   | "heat"
-  | "cold"
   | "drought";
 
 export interface EventProperties {

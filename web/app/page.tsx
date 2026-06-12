@@ -1,10 +1,12 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
 import HazardFilter from "@/components/HazardFilter";
 import SeverityFilter from "@/components/SeverityFilter";
+import SourceFilter from "@/components/SourceFilter";
+import Section from "@/components/Section";
 import TimeSlider from "@/components/TimeSlider";
 import WindowSelect from "@/components/WindowSelect";
 import Legend from "@/components/Legend";
@@ -16,22 +18,52 @@ import {
   matchesSeverity,
   tierOf,
 } from "@/lib/severity";
-import type { Severity, SeverityFilter as SeverityValue } from "@/lib/severity";
+import type { Severity } from "@/lib/severity";
+import { SOURCE_ORDER, isKnownSource } from "@/lib/sources";
+import type { SourceId } from "@/lib/sources";
 import type { EventFeature, HazardType } from "@/lib/types";
 
 // deck.gl + maplibre touch window/WebGL, so the map is client-only.
 const MapView = dynamic(() => import("@/components/MapView"), { ssr: false });
 
+// Track viewport "mobile-ness" outside React state so we can read it during
+// render without triggering a hydration mismatch. SSR/initial-hydration assume
+// not-mobile; after mount, the real media query takes over.
+const MOBILE_QUERY = "(max-width: 640px)";
+const subscribeMobile = (cb: () => void) => {
+  const mq = window.matchMedia(MOBILE_QUERY);
+  mq.addEventListener("change", cb);
+  return () => mq.removeEventListener("change", cb);
+};
+const getMobileSnapshot = () => window.matchMedia(MOBILE_QUERY).matches;
+const getMobileServerSnapshot = () => false;
+
 export default function Page() {
   const [features, setFeatures] = useState<EventFeature[]>([]);
   const [active, setActive] = useState<Set<HazardType>>(new Set(HAZARD_ORDER));
-  const [severity, setSeverity] = useState<SeverityValue>("all");
+  const [activeSources, setActiveSources] = useState<Set<SourceId>>(
+    new Set(SOURCE_ORDER),
+  );
+  const [severity, setSeverity] = useState<Set<Severity>>(
+    new Set(SEVERITY_ORDER),
+  );
   const [cutoffMs, setCutoffMs] = useState<number | null>(null); // null = show all
   const [windowMonths, setWindowMonths] = useState<number | null>(null); // null = cumulative
   const [heatmap, setHeatmap] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
+  // Default panel state follows the viewport (open on desktop, collapsed on
+  // mobile so the map is usable on first load), but user clicks override that.
+  const isMobile = useSyncExternalStore(
+    subscribeMobile,
+    getMobileSnapshot,
+    getMobileServerSnapshot,
+  );
+  const [panelOpenOverride, setPanelOpenOverride] = useState<boolean | null>(
+    null,
+  );
+  const panelOpen = panelOpenOverride ?? !isMobile;
   // Capture "now" once at mount — it's the upper bound of the time slider and
   // doesn't need to tick live. (Reading Date.now() during render is impure.)
   const [now] = useState(() => Date.now());
@@ -85,41 +117,80 @@ export default function Page() {
     [features, cutoff, atNow, lowerMs],
   );
 
+  // Source counts reflect the time window only — so toggling a source off
+  // doesn't make its own count disappear.
+  const sourceCounts = useMemo(() => {
+    const c = Object.fromEntries(SOURCE_ORDER.map((s) => [s, 0])) as Record<
+      SourceId,
+      number
+    >;
+    for (const f of timeFiltered) {
+      const s = f.properties.source;
+      if (isKnownSource(s)) c[s]++;
+    }
+    return c;
+  }, [timeFiltered]);
+
+  // Apply source filter before counting hazards / severity, so those tallies
+  // reflect what's actually on the map.
+  const sourceFiltered = useMemo(
+    () =>
+      timeFiltered.filter((f) => {
+        const s = f.properties.source;
+        return isKnownSource(s) && activeSources.has(s);
+      }),
+    [timeFiltered, activeSources],
+  );
+
   const counts = useMemo(() => {
     const c = Object.fromEntries(HAZARD_ORDER.map((h) => [h, 0])) as Record<
       HazardType,
       number
     >;
-    for (const f of timeFiltered) c[f.properties.hazard_type]++;
+    for (const f of sourceFiltered) c[f.properties.hazard_type]++;
     return c;
-  }, [timeFiltered]);
+  }, [sourceFiltered]);
 
-  // Severity counts reflect the events currently in scope (time + hazard),
+  // Severity counts reflect the events currently in scope (time + source + hazard),
   // so the segmented control mirrors what each tier would reveal.
   const severityCounts = useMemo(() => {
     const c = Object.fromEntries(SEVERITY_ORDER.map((s) => [s, 0])) as Record<
       Severity,
       number
     >;
-    for (const f of timeFiltered) {
+    for (const f of sourceFiltered) {
       if (active.has(f.properties.hazard_type)) c[tierOf(f.properties)]++;
     }
     return c;
-  }, [timeFiltered, active]);
+  }, [sourceFiltered, active]);
 
   const visible = useMemo(
     () =>
-      timeFiltered.filter(
+      sourceFiltered.filter(
         (f) =>
           active.has(f.properties.hazard_type) && matchesSeverity(f, severity),
       ),
-    [timeFiltered, active, severity],
+    [sourceFiltered, active, severity],
   );
 
   const toggle = (h: HazardType) =>
     setActive((prev) => {
       const next = new Set(prev);
       next.has(h) ? next.delete(h) : next.add(h);
+      return next;
+    });
+
+  const toggleSource = (s: SourceId) =>
+    setActiveSources((prev) => {
+      const next = new Set(prev);
+      next.has(s) ? next.delete(s) : next.add(s);
+      return next;
+    });
+
+  const toggleSeverity = (s: Severity) =>
+    setSeverity((prev) => {
+      const next = new Set(prev);
+      next.has(s) ? next.delete(s) : next.add(s);
       return next;
     });
 
@@ -140,35 +211,89 @@ export default function Page() {
       {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
 
       {/* Left control panel */}
-      <div className="absolute left-4 top-4 z-10 w-72 rounded-xl border border-white/10 bg-[#0b1020]/85 p-4 backdrop-blur">
-        <h1 className="text-base font-semibold">🌍 Extreme Weather Tracker</h1>
-        <p className="mt-0.5 text-xs opacity-60">
-          Patterns, transitions & intensity of extreme weather worldwide.
-        </p>
+      <div
+        className={`absolute left-4 top-4 z-10 flex w-72 max-w-[calc(100vw-2rem)] flex-col rounded-xl border border-white/10 bg-[#0b1020]/85 backdrop-blur ${
+          panelOpen ? "max-h-[calc(100vh-2rem)] overflow-y-auto p-4" : "px-4 py-3"
+        }`}
+      >
+        <button
+          onClick={() => setPanelOpenOverride(!panelOpen)}
+          aria-expanded={panelOpen}
+          aria-controls="panel-body"
+          className="-mx-1 flex items-center justify-between gap-2 rounded px-1 py-0.5 text-left transition hover:opacity-90"
+        >
+          <h1 className="text-base font-semibold">🌍 Extreme Weather Tracker</h1>
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 10 10"
+            className={`shrink-0 opacity-70 transition-transform ${panelOpen ? "" : "-rotate-90"}`}
+            aria-hidden
+          >
+            <path
+              d="M1 3 L5 7 L9 3"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
 
-        <div className="my-3 h-px bg-white/10" />
-        <HazardFilter active={active} counts={counts} onToggle={toggle} />
+        {panelOpen && (
+          <div id="panel-body">
+            <p className="mt-0.5 text-xs opacity-60">
+              Patterns, transitions & intensity of extreme weather worldwide.
+            </p>
 
-        <div className="my-3 h-px bg-white/10" />
-        <SeverityFilter
-          value={severity}
-          counts={severityCounts}
-          onChange={setSeverity}
-        />
+            <div className="my-3 h-px bg-white/10" />
+            <Section title="Hazards">
+              <HazardFilter
+                active={active}
+                counts={counts}
+                onToggle={toggle}
+                loading={loading}
+              />
+            </Section>
 
-        <div className="my-3 h-px bg-white/10" />
-        <label className="flex cursor-pointer items-center justify-between text-sm">
-          <span>Heatmap view</span>
-          <input
-            type="checkbox"
-            checked={heatmap}
-            onChange={(e) => setHeatmap(e.target.checked)}
-            className="accent-indigo-400"
-          />
-        </label>
+            <div className="my-3 h-px bg-white/10" />
+            <Section title="Severity">
+              <SeverityFilter
+                active={severity}
+                counts={severityCounts}
+                onToggle={toggleSeverity}
+                loading={loading}
+              />
+            </Section>
 
-        <div className="my-3 h-px bg-white/10" />
-        <Legend />
+            <div className="my-3 h-px bg-white/10" />
+            <Section title="Data source" defaultOpen={false}>
+              <SourceFilter
+                active={activeSources}
+                counts={sourceCounts}
+                onToggle={toggleSource}
+                loading={loading}
+              />
+            </Section>
+
+            <div className="my-3 h-px bg-white/10" />
+            <Section title="Display" defaultOpen={false}>
+              <label className="flex cursor-pointer items-center justify-between text-sm">
+                <span>Heatmap view</span>
+                <input
+                  type="checkbox"
+                  checked={heatmap}
+                  onChange={(e) => setHeatmap(e.target.checked)}
+                  className="accent-indigo-400"
+                />
+              </label>
+              <div className="mt-3">
+                <Legend />
+              </div>
+            </Section>
+          </div>
+        )}
       </div>
 
       {/* Bottom time slider */}
@@ -185,19 +310,31 @@ export default function Page() {
           <WindowSelect value={windowMonths} onChange={setWindowMonths} />
         </div>
         <div className="mt-1 text-center text-xs opacity-50">
-          Showing {visible.length.toLocaleString()} events
-          {windowMonths === null
-            ? atNow
-              ? " up to now"
-              : " up to the selected date"
-            : ` in the ${windowMonths} month${windowMonths > 1 ? "s" : ""} before ${atNow ? "now" : "the selected date"}`}
+          {loading ? (
+            "Loading events…"
+          ) : (
+            <>
+              Showing {visible.length.toLocaleString()} events
+              {windowMonths === null
+                ? atNow
+                  ? " up to now"
+                  : " up to the selected date"
+                : ` in the ${windowMonths} month${windowMonths > 1 ? "s" : ""} before ${atNow ? "now" : "the selected date"}`}
+            </>
+          )}
         </div>
       </div>
 
       {/* Status overlays */}
       {loading && (
-        <div className="absolute inset-x-0 top-1/2 z-20 text-center text-sm opacity-70">
-          Loading events…
+        <div className="pointer-events-none absolute inset-x-0 top-1/2 z-20 flex -translate-y-1/2 items-center justify-center">
+          <div className="flex items-center gap-2 rounded-full border border-white/10 bg-[#0b1020]/85 px-4 py-2 text-sm opacity-90 backdrop-blur">
+            <span
+              className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white/90"
+              aria-hidden="true"
+            />
+            Loading events…
+          </div>
         </div>
       )}
       {error && (

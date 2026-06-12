@@ -1,7 +1,7 @@
 # 🌍 Extreme Weather Tracker
 
 A live world map of extreme weather events — **storms, floods, wildfires,
-extreme heat and extreme cold** — built to observe **patterns, transitions and
+extreme heat** — built to observe **patterns, transitions and
 intensity** of extreme weather across the globe.
 
 Everything runs on **free tiers, no credit card**.
@@ -24,10 +24,10 @@ Python ETL                     →  GitHub Actions (cron)  ingestion
 | Floods | GDACS `FL` | |
 | Wildfires | GDACS `WF` + [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov) | FIRMS pixels aggregated to one event per country per day, at the fire-weighted centre |
 | Drought | GDACS `DR` | bonus hazard |
-| Extreme heat / cold | **Derived** from [Open-Meteo](https://open-meteo.com) | absolute-threshold heuristic over a global city grid (see caveat) |
+| Extreme heat | **Derived** from [Open-Meteo](https://open-meteo.com) | absolute-threshold heuristic over a global city grid (see caveat) |
 
-> **Heat/cold caveat:** no provider ships a ready-made "heatwave event" feed, so
-> we derive them. v1 flags days crossing an absolute temperature threshold.
+> **Heat caveat:** no provider ships a ready-made "heatwave event" feed, so
+> we derive it. v1 flags days crossing an absolute temperature threshold.
 > The clean upgrade (TODO in `ingestion/sources/temperature.py`) is
 > percentile-vs-climatology anomaly detection.
 
@@ -115,6 +115,6 @@ web/         Next.js + TS + MapLibre + deck.gl
 
 - Cyclone **tracks** (IBTrACS history + NHC live) drawn as moving trails — best
   showcase of "transitions across the world".
-- Percentile-based heat/cold anomalies (see temperature.py TODO).
+- Percentile-based heat anomalies (see temperature.py TODO).
 - A time-lapse "play" button animating the slider.
 - GloFAS flood footprints as polygons.

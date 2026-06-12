@@ -7,10 +7,12 @@ export default function HazardFilter({
   active,
   counts,
   onToggle,
+  loading = false,
 }: {
   active: Set<HazardType>;
   counts: Record<HazardType, number>;
   onToggle: (h: HazardType) => void;
+  loading?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-1.5">
@@ -33,7 +35,7 @@ export default function HazardFilter({
               {meta.emoji} {meta.label}
             </span>
             <span className="tabular-nums text-xs opacity-60">
-              {counts[h] ?? 0}
+              {loading ? "—" : (counts[h] ?? 0)}
             </span>
           </button>
         );

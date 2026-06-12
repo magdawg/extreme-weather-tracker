@@ -19,7 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
-VALID_HAZARDS = {"storm", "flood", "wildfire", "heat", "cold", "drought"}
+VALID_HAZARDS = {"storm", "flood", "wildfire", "heat", "drought"}
 
 app = FastAPI(title="Extreme Weather Tracker API", version="0.1.0")
 

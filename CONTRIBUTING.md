@@ -79,8 +79,8 @@ Hard requirements:
   the same id on every run, or the 12h cron will create duplicates instead of
   upserting. (FIRMS, which has no provider id, synthesizes one from
   `source-countrycode-date`; do something equivalent if your provider lacks ids.)
-- **`hazard_type` must be one of** `storm | flood | wildfire | heat | cold |
-  drought`. Adding a *new* hazard means more work — see below.
+- **`hazard_type` must be one of** `storm | flood | wildfire | heat | drought`.
+  Adding a *new* hazard means more work — see below.
 - **`intensity_norm` must be `0..1`** and comparable in spirit to the other
   sources (see `ARCHITECTURE.md` → intensity model). Always `clamp01`.
 - **Geometry is GeoJSON, SRID 4326** (`[lon, lat]` order). Use the `point()`

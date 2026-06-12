@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS events (
     source_event_id TEXT        NOT NULL,            -- stable id within that source
 
     -- classification
-    hazard_type     TEXT        NOT NULL,            -- 'storm'|'flood'|'wildfire'|'heat'|'cold'|'drought'
+    hazard_type     TEXT        NOT NULL,            -- 'storm'|'flood'|'wildfire'|'heat'|'drought'
     title           TEXT,
     severity_raw    TEXT,                            -- source's own label, e.g. 'Orange', 'Red'
     intensity_norm  DOUBLE PRECISION,                -- 0..1 unified scale for color/size

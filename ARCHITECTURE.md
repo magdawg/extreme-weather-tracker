@@ -36,7 +36,7 @@ stay aligned.
 |-------------------|---------------------------------------------------------------|
 | `source`          | `'gdacs' \| 'firms' \| 'open-meteo'` — provenance             |
 | `source_event_id` | **stable** id within that source (drives idempotent upsert)   |
-| `hazard_type`     | fixed taxonomy: storm/flood/wildfire/heat/cold/drought        |
+| `hazard_type`     | fixed taxonomy: storm/flood/wildfire/heat/drought             |
 | `geometry`        | GeoJSON geometry dict (Point or Polygon), SRID 4326           |
 | `title`           | human label for the tooltip                                   |
 | `severity_raw`    | the source's own label (e.g. GDACS `Orange`, `FRP 42 MW`)     |
@@ -73,9 +73,8 @@ clamped (`clamp01`) and comparable:
   `FIRMS_MIN_INTENSITY` are dropped as noise. Intensity blends mean fire
   radiative power and detection count —
   `0.6·(mean_FRP/200) + 0.4·(log1p(count)/log1p(200))`, clamped.
-- **Open-Meteo heat/cold** (`sources/temperature.py`): distance past an absolute
-  threshold over a saturation span — heat `(tmax−40)/15`, cold `(−18−tmin)/22`,
-  clamped.
+- **Open-Meteo heat** (`sources/temperature.py`): distance past an absolute
+  threshold over a saturation span — `(tmax−40)/15`, clamped.
 
 ### Severity tiers (frontend)
 
@@ -99,9 +98,9 @@ filter meaningful across sources that don't share GDACS's colour scheme.
 
 ## Known limitations / upgrade paths
 
-- **Heat/cold are heuristic**, sampled over a fixed ~52-city grid with absolute
-  thresholds. Upgrade: percentile-vs-climatology anomalies from the ERA5 archive
-  (TODO in `temperature.py`) — captures a "cold snap" in the tropics that a
+- **Heat is heuristic**, sampled over a fixed ~52-city grid with an absolute
+  threshold. Upgrade: percentile-vs-climatology anomalies from the ERA5 archive
+  (TODO in `temperature.py`) — captures a "heatwave" in the Arctic that a
   fixed cutoff misses. Pipeline unchanged.
 - **No cyclone tracks** yet — points only. IBTrACS history + NHC live tracks
   drawn as trails would best show "transitions across the world".

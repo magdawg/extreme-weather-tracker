@@ -4,12 +4,12 @@ Multi-hazard backbone. We keep the hazards the project cares about and drop
 earthquakes/volcanoes.
 
 GDACS exposes two complementary GeoJSON feeds with the same feature shape:
-  - SEARCH returns the significant historical catalogue (Orange/Red alerts,
-    typically already closed).
-  - MAP returns currently-active events of *all* severities — overwhelmingly
-    Green, which SEARCH never surfaces.
-We fetch both and merge, deduping by source_event_id, so the map shows both the
-significant past events and the low-severity events happening right now.
+  - SEARCH returns the historical catalogue. It silently defaults to
+    Orange/Red only, so we pass alertlevel=Green;Orange;Red explicitly —
+    otherwise closed Green events (the majority) are unreachable.
+  - MAP returns currently-active events of *all* severities, including Green.
+We fetch both and merge, deduping by source_event_id, so the map shows both
+historical events back to SEARCH_FROMDATE and anything happening right now.
 
 Docs / Swagger: https://www.gdacs.org/gdacsapi/swagger/index.html
 """
@@ -30,6 +30,10 @@ from normalize import (
 
 SEARCH_URL = "https://www.gdacs.org/gdacsapi/api/events/geteventlist/SEARCH"
 MAP_URL = "https://www.gdacs.org/gdacsapi/api/events/geteventlist/MAP"
+
+# Cap how far back we backfill from SEARCH. With Greens included the catalogue
+# stretches back many years; we only need recent-ish events on the map.
+SEARCH_FROMDATE = "2024-01-01"
 
 _HEADERS = {"User-Agent": "extreme-weather-tracker/0.1"}
 
@@ -67,10 +71,15 @@ def fetch(lookback_days: int = 7) -> list[Event]:
 def _fetch_search() -> list[dict]:
     """Page through SEARCH (100 per page) until empty."""
     features: list[dict] = []
-    for page in range(1, 11):
+    for page in range(1, 51):
         resp = requests.get(
             SEARCH_URL,
-            params={"pagesize": 100, "pagenumber": page},
+            params={
+                "pagesize": 100,
+                "pagenumber": page,
+                "alertlevel": "Green;Orange;Red",
+                "fromdate": SEARCH_FROMDATE,
+            },
             timeout=60,
             headers=_HEADERS,
         )

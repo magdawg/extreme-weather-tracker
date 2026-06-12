@@ -147,7 +147,7 @@ Note the API URL **without a trailing slash** — the frontend needs it next.
 
 1. Open the frontend URL → the map loads (it's client-only via `next/dynamic`,
    so give WebGL a moment).
-2. Dots appear for storms/floods/wildfires/heat/cold/drought. If the map is
+2. Dots appear for storms/floods/wildfires/heat/drought. If the map is
    empty, the API has no data — re-check step 2 (did the Action run? did rows
    land in Neon?).
 3. The hazard, severity, and time filters respond instantly (all filtering is

@@ -1,15 +1,15 @@
-"""Extreme heat & cold — DERIVED, because no provider ships a ready-made
+"""Extreme heat — DERIVED, because no provider ships a ready-made
 "heatwave event" feed.
 
 v1 (this file): sample a global grid of major cities via the free, key-less
-Open-Meteo forecast API and flag days whose max/min crosses an absolute
+Open-Meteo forecast API and flag days whose max crosses an absolute
 extreme threshold. Intensity scales with how far past the threshold we are.
 
 This is a deliberate heuristic. The clean upgrade (left as a TODO) is to
 compare each day against that location's climatological normal (ERA5 archive)
 and flag percentile anomalies instead of fixed thresholds — that captures a
-"cold snap" in the tropics or a "heatwave" in the Arctic, which absolute cut-offs
-miss. The rest of the pipeline doesn't change.
+"heatwave" in the Arctic, which absolute cut-offs miss. The rest of the
+pipeline doesn't change.
 """
 from __future__ import annotations
 
@@ -17,14 +17,12 @@ from datetime import datetime, timezone
 
 import requests
 
-from normalize import HAZARD_COLD, HAZARD_HEAT, Event, clamp01, point
+from normalize import HAZARD_HEAT, Event, clamp01, point
 
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 
 HEAT_THRESHOLD_C = 40.0   # daily max at/above this = extreme heat event
 HEAT_SATURATION_C = 15.0  # +15C over threshold = intensity 1.0
-COLD_THRESHOLD_C = -18.0  # daily min at/below this = extreme cold event
-COLD_SATURATION_C = 22.0
 
 # A spread of major population centres across every inhabited continent.
 # (slug, name, lat, lon)
@@ -75,7 +73,7 @@ def _forecast(lat: float, lon: float) -> dict:
         params={
             "latitude": lat,
             "longitude": lon,
-            "daily": "temperature_2m_max,temperature_2m_min",
+            "daily": "temperature_2m_max",
             "forecast_days": 7,
             "timezone": "UTC",
         },
@@ -90,11 +88,9 @@ def _classify(slug: str, name: str, lat: float, lon: float, daily: dict) -> list
     out: list[Event] = []
     dates = daily.get("time", [])
     tmax = daily.get("temperature_2m_max", [])
-    tmin = daily.get("temperature_2m_min", [])
     for i, date in enumerate(dates):
         day = datetime.strptime(date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
         hi = tmax[i] if i < len(tmax) else None
-        lo = tmin[i] if i < len(tmin) else None
 
         if hi is not None and hi >= HEAT_THRESHOLD_C:
             out.append(
@@ -109,21 +105,6 @@ def _classify(slug: str, name: str, lat: float, lon: float, daily: dict) -> list
                     started_at=day,
                     ended_at=day,
                     metadata={"city": name, "tmax_c": hi},
-                )
-            )
-        if lo is not None and lo <= COLD_THRESHOLD_C:
-            out.append(
-                Event(
-                    source="open-meteo",
-                    source_event_id=f"{slug}-{date}-cold",
-                    hazard_type=HAZARD_COLD,
-                    geometry=point(lon, lat),
-                    title=f"Extreme cold in {name} ({lo:.0f}°C)",
-                    severity_raw=f"{lo:.0f}°C min",
-                    intensity_norm=clamp01((COLD_THRESHOLD_C - lo) / COLD_SATURATION_C),
-                    started_at=day,
-                    ended_at=day,
-                    metadata={"city": name, "tmin_c": lo},
                 )
             )
     return out
