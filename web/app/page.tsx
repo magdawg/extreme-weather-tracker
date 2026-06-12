@@ -1,7 +1,14 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 
 import HazardFilter from "@/components/HazardFilter";
 import SeverityFilter from "@/components/SeverityFilter";
@@ -17,7 +24,7 @@ import EventDetails from "@/components/EventDetails";
 import type { SelectedEvent } from "@/components/EventDetails";
 import { GlobeIcon, InfoIcon, ChevronDownIcon } from "@/components/icons";
 import { PANEL, FOCUS } from "@/lib/ui";
-import { fetchEvents } from "@/lib/api";
+import { fetchEvents, timeChunks, DATA_START_YEAR } from "@/lib/api";
 import { HAZARD_ORDER } from "@/lib/hazards";
 import {
   SEVERITY_ORDER,
@@ -86,26 +93,67 @@ export default function Page() {
   // doesn't need to tick live. (Reading Date.now() during render is impure.)
   const [now] = useState(() => Date.now());
 
-  useEffect(() => {
-    // Fetch everything we have, then let the slider span the real data range —
-    // GDACS's most-recent events per hazard can be months old.
-    fetchEvents()
-      .then((fc) => setFeatures(fc.features))
-      .catch((e) => setError(String(e)))
-      .finally(() => setLoading(false));
-  }, []);
+  // The slider spans the full known data range [start-of-data, now] rather than
+  // the range of *loaded* events: with lazy chunk loading the user must be able
+  // to scrub into ranges that haven't been fetched yet, which is what triggers
+  // their load. Fixed domain, so it's stable from first paint.
+  const minMs = useMemo(() => Date.UTC(DATA_START_YEAR, 0, 1), []);
+  const maxMs = now;
 
-  // Time domain derived from the data: [oldest event, now].
-  const { minMs, maxMs } = useMemo(() => {
-    let min = now;
-    for (const f of features) {
-      const s = f.properties.started_at;
-      if (s) min = Math.min(min, new Date(s).getTime());
+  // The timeline split into fixed, independently-cacheable 2-year chunks
+  // (newest first). We load the newest chunk on mount for a fast first paint,
+  // then load older chunks on demand as the view needs them.
+  const chunks = useMemo(() => timeChunks(now), [now]);
+  const [loadedChunks, setLoadedChunks] = useState<Set<number>>(new Set());
+  const inFlight = useRef<Set<number>>(new Set());
+
+  const loadChunk = useCallback(
+    (i: number) => {
+      if (loadedChunks.has(i) || inFlight.current.has(i)) return;
+      const c = chunks[i];
+      if (!c) return;
+      inFlight.current.add(i);
+      fetchEvents({ from: c.from, to: c.to })
+        .then((fc) => {
+          // Long-lived events (e.g. droughts) can straddle a chunk boundary and
+          // be returned by two adjacent requests. Keep only those whose
+          // started_at falls in this chunk's half-open range, so each event is
+          // owned by exactly one chunk — no duplicates when chunks merge.
+          // (Undated events are never returned once from/to are set; the dataset
+          // currently has none — see summary.)
+          const own = fc.features.filter((f) => {
+            const s = f.properties.started_at;
+            if (!s) return false;
+            const t = new Date(s).getTime();
+            return t >= c.fromMs && t < c.toMs;
+          });
+          setFeatures((prev) => prev.concat(own));
+          setLoadedChunks((prev) => new Set(prev).add(i));
+        })
+        .catch((e) => setError(String(e)))
+        .finally(() => {
+          inFlight.current.delete(i);
+          if (i === 0) setLoading(false);
+        });
+    },
+    [chunks, loadedChunks],
+  );
+
+  // Load the newest chunk first for a fast first paint, then pre-load every
+  // other chunk in the background (newest to oldest) so scrubbing and playback
+  // never hit an unloaded range. loadChunk de-dupes already-loaded/in-flight
+  // requests, so re-running as chunks resolve is cheap.
+  useEffect(() => {
+    if (!loadedChunks.has(0)) {
+      loadChunk(0);
+      return;
     }
-    // Guard against a single same-day dataset.
-    if (min >= now) min = now - 30 * 86_400_000;
-    return { minMs: min, maxMs: now };
-  }, [features, now]);
+    for (let i = 1; i < chunks.length; i++) loadChunk(i);
+  }, [loadedChunks, chunks, loadChunk]);
+
+  // True until every chunk has loaded — drives the subtle "loading history…"
+  // hint without blocking the already-rendered map.
+  const historyLoading = loadedChunks.size < chunks.length;
 
   const cutoff = cutoffMs ?? maxMs;
   const atNow = cutoff >= maxMs;
@@ -438,6 +486,9 @@ export default function Page() {
                   : " up to the selected date"
                 : ` in the ${windowMonths} month${windowMonths > 1 ? "s" : ""} before ${atNow ? "now" : "the selected date"}`}
             </>
+          )}
+          {!loading && historyLoading && (
+            <span className="ml-1.5 text-white/35">· loading history…</span>
           )}
         </div>
       </div>

@@ -16,6 +16,7 @@ import psycopg2
 import psycopg2.pool
 from fastapi import FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
@@ -30,6 +31,14 @@ app.add_middleware(
     allow_methods=["GET"],
     allow_headers=["*"],
 )
+
+# Compress responses at the origin. This is what makes /events cacheable on
+# Vercel's CDN: the edge evaluates the 10 MB cache-size limit against the
+# *uncompressed* origin body, so a 14 MB JSON payload is silently never cached.
+# Gzipping in the function drops the origin body to ~1 MB, well under the limit,
+# and also cuts transfer time. (Added after CORS so it wraps the final
+# response and gzips it with the CORS headers already in place.)
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 # A tiny connection pool survives across warm serverless invocations.
 _pool: Optional[psycopg2.pool.SimpleConnectionPool] = None
