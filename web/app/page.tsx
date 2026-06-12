@@ -9,6 +9,7 @@ import SourceFilter from "@/components/SourceFilter";
 import Section from "@/components/Section";
 import TimeSlider from "@/components/TimeSlider";
 import WindowSelect from "@/components/WindowSelect";
+import SpeedSelect from "@/components/SpeedSelect";
 import Legend from "@/components/Legend";
 import AboutDialog from "@/components/AboutDialog";
 import { fetchEvents } from "@/lib/api";
@@ -27,9 +28,10 @@ import type { EventFeature, HazardType } from "@/lib/types";
 const MapView = dynamic(() => import("@/components/MapView"), { ssr: false });
 
 const DAY_MS = 86_400_000;
-// Playback sweeps the whole data domain in a fixed number of frames, so the
-// wall-clock speed stays steady regardless of how wide the date range is.
-const PLAYBACK_FRAMES = 200;
+// At 1× speed, playback sweeps the whole data domain in this many frames, so
+// wall-clock speed stays steady regardless of how wide the date range is. The
+// selected speed multiplier scales the per-frame step.
+const PLAYBACK_FRAMES = 480;
 const PLAYBACK_INTERVAL_MS = 120;
 
 // Track viewport "mobile-ness" outside React state so we can read it during
@@ -55,6 +57,7 @@ export default function Page() {
   );
   const [cutoffMs, setCutoffMs] = useState<number | null>(null); // null = show all
   const [playing, setPlaying] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [windowMonths, setWindowMonths] = useState<number | null>(1); // default: last 1 month
   const [heatmap, setHeatmap] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -102,7 +105,8 @@ export default function Page() {
   // Advance the cutoff toward "now" while playing, then stop on arrival.
   useEffect(() => {
     if (!playing) return;
-    const step = Math.max(DAY_MS, (maxMs - minMs) / PLAYBACK_FRAMES);
+    const step =
+      Math.max(DAY_MS, (maxMs - minMs) / PLAYBACK_FRAMES) * playbackSpeed;
     const id = setInterval(() => {
       setCutoffMs((prev) => {
         const next = (prev ?? maxMs) + step;
@@ -114,7 +118,7 @@ export default function Page() {
       });
     }, PLAYBACK_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [playing, minMs, maxMs]);
+  }, [playing, minMs, maxMs, playbackSpeed]);
 
   const togglePlay = () => {
     // Pressing play at the end replays from the start of the data range.
@@ -344,8 +348,9 @@ export default function Page() {
             onTogglePlay={togglePlay}
           />
         )}
-        <div className="mt-2 flex items-center justify-center">
+        <div className="mt-2 flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
           <WindowSelect value={windowMonths} onChange={setWindowMonths} />
+          <SpeedSelect value={playbackSpeed} onChange={setPlaybackSpeed} />
         </div>
         <div className="mt-1 text-center text-xs opacity-50">
           {loading ? (
