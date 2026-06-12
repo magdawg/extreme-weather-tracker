@@ -114,6 +114,18 @@ export default function Page() {
     return out;
   }, [minMs, maxMs]);
 
+  // Month to open on when toggling into month view — the most recent event's
+  // month, so the first view always has data (falls back to the latest year).
+  const defaultMonth = useMemo(() => {
+    let latest = -Infinity;
+    for (const f of features) {
+      const s = f.properties.started_at;
+      if (s) latest = Math.max(latest, new Date(s).getTime());
+    }
+    const d = new Date(latest > 0 ? latest : maxMs);
+    return { year: d.getFullYear(), month: d.getMonth() };
+  }, [features, maxMs]);
+
   // Half-open [start, end) bounds of the selected calendar month, or null.
   const monthRange = useMemo(() => {
     if (!monthFilter) return null;
@@ -382,7 +394,12 @@ export default function Page() {
           />
         )}
         <div className="mt-2 flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
-          <MonthPicker value={monthFilter} years={years} onChange={handleMonthChange} />
+          <MonthPicker
+            value={monthFilter}
+            years={years}
+            defaultMonth={defaultMonth}
+            onChange={handleMonthChange}
+          />
           {monthFilter === null && (
             <>
               <WindowSelect value={windowMonths} onChange={setWindowMonths} />
