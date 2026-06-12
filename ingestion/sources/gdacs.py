@@ -34,6 +34,7 @@ from collections.abc import Iterator
 from datetime import date, datetime, timedelta, timezone
 
 import requests
+import reverse_geocode
 
 from normalize import (
     HAZARD_DROUGHT,
@@ -79,6 +80,68 @@ def _parse_dt(value: str | None) -> datetime | None:
     return None
 
 
+def _clean_title(name: str | None) -> str | None:
+    """GDACS auto-generates names like "Flood in Australia, Serbia" — purely the
+    hazard word + its (often wrong) country list, which the map already renders
+    from hazard_type + country. Those add nothing and parrot GDACS's bogus
+    geography, so drop them; the frontend falls back to the hazard label. Names
+    that carry real information (e.g. "Tropical Cyclone CHIDO-25") have no " in "
+    and are kept."""
+    if not name:
+        return None
+    return None if " in " in name.lower() else name
+
+
+def _repr_latlon(geom: dict) -> tuple[float, float] | None:
+    """A single (lat, lon) representative point for reverse geocoding. GDACS
+    geteventlist returns Point geometry; handle the common cases defensively."""
+    coords = geom.get("coordinates")
+    gtype = geom.get("type")
+    try:
+        if gtype == "Point":
+            lon, lat = coords[0], coords[1]
+        elif gtype in ("Polygon", "MultiPolygon"):
+            ring = coords[0][0] if gtype == "MultiPolygon" else coords[0]
+            lon = sum(p[0] for p in ring) / len(ring)
+            lat = sum(p[1] for p in ring) / len(ring)
+        else:
+            return None
+        return float(lat), float(lon)
+    except (TypeError, IndexError, ValueError, ZeroDivisionError):
+        return None
+
+
+def _verify_countries(events: list[Event]) -> list[Event]:
+    """Replace GDACS's self-reported country with the country the *localized*
+    event's point actually falls in (offline reverse geocode, same lookup FIRMS
+    uses). For floods/wildfires/droughts GDACS's list is unreliable — it tags
+    physically impossible countries (a Lisbon flood as "Portugal, United
+    Kingdom"; a Balkans flood as "Australia, Serbia"). Such an event sits at one
+    point and can only be in one country, so the point is both cleaner and more
+    correct. The original GDACS string is kept in metadata for traceability.
+
+    Storms are exempt: a tropical cyclone genuinely tracks across multiple
+    countries, so GDACS's multi-country list (e.g. "Philippines, China, Japan")
+    is real information that a single point would wrongly collapse."""
+    pts: list[tuple[float, float]] = []
+    idx: list[int] = []
+    for i, ev in enumerate(events):
+        if ev.hazard_type == HAZARD_STORM:
+            continue
+        ll = _repr_latlon(ev.geometry)
+        if ll:
+            pts.append(ll)
+            idx.append(i)
+    if not pts:
+        return events
+    for i, hit in zip(idx, reverse_geocode.search(pts)):
+        country = hit.get("country")
+        if country:
+            events[i].metadata["gdacs_country"] = events[i].country
+            events[i].country = country
+    return events
+
+
 def fetch(lookback_days: int = 7, backfill: bool = False) -> list[Event]:
     # Merge the significant historical catalogue (SEARCH) with the currently
     # active all-severity feed (MAP), deduping by source_event_id.
@@ -90,7 +153,7 @@ def fetch(lookback_days: int = 7, backfill: bool = False) -> list[Event]:
         ev = _to_event(feat)
         if ev:
             by_id.setdefault(ev.source_event_id, ev)
-    return list(by_id.values())
+    return _verify_countries(list(by_id.values()))
 
 
 def fetch_backfill() -> Iterator[tuple[int, list[Event]]]:
@@ -115,7 +178,7 @@ def fetch_backfill() -> Iterator[tuple[int, list[Event]]]:
             ev = _to_event(feat)
             if ev:
                 by_id.setdefault(ev.source_event_id, ev)
-        yield year, list(by_id.values())
+        yield year, _verify_countries(list(by_id.values()))
 
 
 def _month_windows(start: date, end: date) -> list[tuple[date, date]]:
@@ -212,7 +275,7 @@ def _to_event(feat: dict) -> Event | None:
         source_event_id=f"{etype}-{event_id}",
         hazard_type=hazard,
         geometry=geom,
-        title=props.get("name") or props.get("htmldescription") or props.get("description"),
+        title=_clean_title(props.get("name") or props.get("htmldescription") or props.get("description")),
         severity_raw=alert_level,
         intensity_norm=gdacs_intensity(alert_level, alert_score),
         started_at=_parse_dt(props.get("fromdate")),

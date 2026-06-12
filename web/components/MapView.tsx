@@ -48,17 +48,29 @@ function toPoints(features: EventFeature[]): MapPoint[] {
   return pts;
 }
 
+// GDACS names are usually just "<hazard> in <countries>", which restates the
+// hazard + country lines we already render. When the title adds nothing beyond
+// that, drop it and lead with the hazard label instead.
+function titleRestatesCountry(title: string | null | undefined, country: string | null | undefined) {
+  if (!title || !country) return false;
+  return title.toLowerCase().includes(country.toLowerCase());
+}
+
 function getTooltip({ object }: { object?: MapPoint }) {
   if (!object?.props) return null;
   const p = object.props;
   const date = p.started_at ? new Date(p.started_at).toLocaleDateString() : "";
   const meta = HAZARDS[p.hazard_type];
+  const label = meta?.label ?? p.hazard_type;
   const severity = SEVERITIES[tierOf(p)].label;
   const source = SOURCE_LABELS[p.source] ?? p.source;
+  const showTitle = p.title && !titleRestatesCountry(p.title, p.country);
+  const heading = showTitle
+    ? `<b>${meta?.emoji ?? ""} ${p.title}</b>
+      <br/><span style="opacity:.7">${label}</span> · ${severity}`
+    : `<b>${meta?.emoji ?? ""} ${label}</b> · ${severity}`;
   return {
-    html: `<b>${meta?.emoji ?? ""} ${p.title ?? meta?.label ?? p.hazard_type}</b>
-      <br/><span style="opacity:.7">${meta?.label ?? p.hazard_type}</span>
-      ${" · " + severity}
+    html: `${heading}
       ${p.country ? "<br/>" + p.country : ""}
       ${date ? "<br/>" + date : ""}
       ${source ? `<br/><span style="opacity:.6">Source: ${source}</span>` : ""}`,
