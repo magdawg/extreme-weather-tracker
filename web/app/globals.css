@@ -12,15 +12,21 @@ body,
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
-/* deck.gl tooltip */
+/* deck.gl tooltip — matches the floating glass panels (PANEL token). */
 .deck-tooltip {
   font-size: 12px !important;
-  background: rgba(11, 16, 32, 0.95) !important;
+  line-height: 1.45 !important;
+  background: rgba(11, 16, 32, 0.92) !important;
   color: #e5e7eb !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  border-radius: 8px !important;
-  padding: 8px 10px !important;
-  max-width: 260px;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 12px !important;
+  padding: 11px 13px !important;
+  max-width: 280px;
+  box-shadow:
+    0 10px 30px -8px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(255, 255, 255, 0.04) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
 }
 
 /* Time-slider range input. The filled portion is driven by an inline
@@ -72,6 +78,21 @@ body,
 .ewt-scroll::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.15);
   border-radius: 9999px;
+}
+
+/* Entrance for the event detail card — a small scale+rise from the corner. */
+.ewt-pop {
+  animation: ewt-pop 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes ewt-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* Honor users who prefer less motion: drop transitions/animations to a blink. */

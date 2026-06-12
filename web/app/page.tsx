@@ -13,8 +13,10 @@ import MonthPicker from "@/components/MonthPicker";
 import SpeedSelect from "@/components/SpeedSelect";
 import Legend from "@/components/Legend";
 import AboutDialog from "@/components/AboutDialog";
+import EventDetails from "@/components/EventDetails";
+import type { SelectedEvent } from "@/components/EventDetails";
 import { GlobeIcon, InfoIcon, ChevronDownIcon } from "@/components/icons";
-import { PANEL, ICON_BTN, FOCUS } from "@/lib/ui";
+import { PANEL, FOCUS } from "@/lib/ui";
 import { fetchEvents } from "@/lib/api";
 import { HAZARD_ORDER } from "@/lib/hazards";
 import {
@@ -68,6 +70,7 @@ export default function Page() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [selected, setSelected] = useState<SelectedEvent | null>(null);
   // Default panel state follows the viewport (open on desktop, collapsed on
   // mobile so the map is usable on first load), but user clicks override that.
   const isMobile = useSyncExternalStore(
@@ -283,16 +286,20 @@ export default function Page() {
 
   return (
     <main className="relative h-screen w-screen overflow-hidden">
-      <MapView features={visible} heatmap={heatmap} />
+      <MapView features={visible} heatmap={heatmap} onSelect={setSelected} />
+
+      {selected && (
+        <EventDetails event={selected} onClose={() => setSelected(null)} />
+      )}
 
       {/* About button — bottom-left corner */}
       <button
         onClick={() => setAboutOpen(true)}
         aria-label="About this project"
         title="About this project"
-        className={`absolute bottom-4 left-4 z-10 h-10 w-10 backdrop-blur-md ${ICON_BTN}`}
+        className={`absolute bottom-4 left-4 z-10 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border border-white/15 bg-[#0b1020]/85 text-white shadow-lg shadow-black/40 ring-1 ring-white/10 backdrop-blur-md transition hover:bg-[#0b1020] hover:ring-white/20 active:scale-95 ${FOCUS}`}
       >
-        <InfoIcon size={18} />
+        <InfoIcon size={19} />
       </button>
 
       {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
