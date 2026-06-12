@@ -48,7 +48,7 @@ export default function Page() {
     new Set(SEVERITY_ORDER),
   );
   const [cutoffMs, setCutoffMs] = useState<number | null>(null); // null = show all
-  const [windowMonths, setWindowMonths] = useState<number | null>(null); // null = cumulative
+  const [windowMonths, setWindowMonths] = useState<number | null>(1); // default: last 1 month
   const [heatmap, setHeatmap] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
