@@ -74,7 +74,7 @@ clamped (`clamp01`) and comparable:
   radiative power and detection count —
   `0.6·(mean_FRP/200) + 0.4·(log1p(count)/log1p(200))`, clamped.
 - **Open-Meteo heat** (`sources/temperature.py`): distance past an absolute
-  threshold over a saturation span — `(tmax−40)/15`, clamped.
+  threshold over a saturation span — `(tmax−42)/15`, clamped.
 
 ### Severity tiers (frontend)
 
@@ -98,7 +98,8 @@ filter meaningful across sources that don't share GDACS's colour scheme.
 
 ## Known limitations / upgrade paths
 
-- **Heat is heuristic**, sampled over a fixed ~52-city grid with an absolute
+- **Heat is heuristic**, sampled over the top ~1000 cities worldwide by
+  population (from the bundled GeoNames dataset) against an absolute 42 °C
   threshold. Upgrade: percentile-vs-climatology anomalies from the ERA5 archive
   (TODO in `temperature.py`) — captures a "heatwave" in the Arctic that a
   fixed cutoff misses. Pipeline unchanged.

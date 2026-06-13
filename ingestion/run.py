@@ -1,8 +1,9 @@
 """Ingestion orchestrator — run by GitHub Actions every 12h (or locally).
 
-    python run.py                       # all sources, routine recent window
+    python run.py                                    # all sources, routine recent window
     python run.py --source gdacs firms
-    python run.py --source gdacs --backfill   # one-shot GDACS history back to 2021
+    python run.py --source gdacs --backfill          # one-shot GDACS history back to 2021
+    python run.py --source temperature --backfill    # one-shot ERA5 heat history back to 2021
 """
 from __future__ import annotations
 
@@ -38,6 +39,21 @@ def run_gdacs_backfill() -> int:
         n = _upsert(events)
         total += n
         print(f"[gdacs] {year}: upserted {n} events ({total} so far)")
+    return total
+
+
+def run_temperature_backfill(from_year: int | None = None) -> int:
+    """Same streaming pattern as GDACS: yield + upsert one year at a time so a
+    multi-year ERA5 sweep never buffers everything or holds the connection idle.
+
+    `from_year` lets a re-run resume from the first missing year instead of
+    redoing every year — see fetch_backfill's docstring.
+    """
+    total = 0
+    for year, events in temperature.fetch_backfill(from_year=from_year):
+        n = _upsert(events)
+        total += n
+        print(f"[temperature] {year}: upserted {n} events ({total} so far)")
     return total
 
 
@@ -90,8 +106,15 @@ def main() -> int:
     parser.add_argument(
         "--backfill",
         action="store_true",
-        help="GDACS only: one-shot deep history pull back to 2021 (idempotent). "
-        "Other sources ignore it.",
+        help="GDACS and temperature: one-shot deep history pull back to 2021 "
+        "(idempotent). Other sources ignore it.",
+    )
+    parser.add_argument(
+        "--from-year",
+        type=int,
+        default=None,
+        help="Temperature backfill: re-run from this year forward instead of "
+        "BACKFILL_FROMDATE (e.g. --from-year 2025 to resume after a partial run).",
     )
     args = parser.parse_args()
 
@@ -110,6 +133,8 @@ def main() -> int:
             if name == "gdacs" and args.backfill:
                 # Streams + writes per year; connects per batch internally.
                 n = run_gdacs_backfill()
+            elif name == "temperature" and args.backfill:
+                n = run_temperature_backfill(from_year=args.from_year)
             else:
                 events = SOURCES[name](backfill=args.backfill)
                 n = _upsert(events)
