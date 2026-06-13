@@ -2,7 +2,7 @@
 
     python run.py                                    # all sources, routine recent window
     python run.py --source gdacs firms
-    python run.py --source gdacs --backfill          # one-shot GDACS history back to 2021
+    python run.py --source gdacs --backfill          # one-shot GDACS history back to 2015
     python run.py --source temperature --backfill    # one-shot ERA5 heat history back to 2021
 """
 from __future__ import annotations
@@ -106,8 +106,8 @@ def main() -> int:
     parser.add_argument(
         "--backfill",
         action="store_true",
-        help="GDACS and temperature: one-shot deep history pull back to 2021 "
-        "(idempotent). Other sources ignore it.",
+        help="GDACS (back to 2015) and temperature (back to 2021): one-shot "
+        "deep history pull (idempotent). Other sources ignore it.",
     )
     parser.add_argument(
         "--from-year",

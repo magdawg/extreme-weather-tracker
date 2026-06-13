@@ -154,10 +154,10 @@ export default function EventDetails({
 
       {source && (
         <a
-          href={source.url}
+          href={p.url ?? source.url}
           target="_blank"
           rel="noreferrer"
-          title={source.description}
+          title={p.url ? `Open this event's report on ${source.label}` : source.description}
           className={`mt-3 flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/70 transition hover:bg-white/10 hover:text-white ${FOCUS}`}
         >
           <span>

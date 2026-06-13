@@ -141,11 +141,13 @@ def events(
     params.append(limit)
     # Order by recency so that any truncation drops the oldest events
     # deterministically (predictable for the time slider). We omit unused
-    # columns (id, ended_at, url, metadata) to keep the payload small —
-    # the map only needs what the tooltip and filters read.
+    # columns (id, ended_at, metadata) to keep the payload small — the map
+    # only needs what the tooltip and filters read. `url` is included so the
+    # detail panel can link to the provider's report page for the specific
+    # event (currently only populated by GDACS).
     sql = f"""
         SELECT source, hazard_type, title, severity_raw, intensity_norm,
-               started_at, country,
+               started_at, country, url,
                ST_AsGeoJSON(geom) AS geojson
         FROM events
         WHERE {' AND '.join(where)}
@@ -166,6 +168,7 @@ def events(
                 "intensity_norm": r["intensity_norm"],
                 "started_at": r["started_at"].isoformat() if r["started_at"] else None,
                 "country": r["country"],
+                "url": r["url"],
             },
         }
         for r in rows

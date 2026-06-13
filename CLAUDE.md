@@ -33,7 +33,7 @@ MapLibre + deck.gl). See `AGENTS.md` and `ARCHITECTURE.md` for detail.
 # ingestion (from ingestion/, venv active)
 python run.py                    # all sources
 python run.py --source gdacs     # one source: gdacs | firms | temperature
-python run.py --source gdacs --backfill        # one-shot GDACS history back to 2021 (idempotent)
+python run.py --source gdacs --backfill        # one-shot GDACS history back to 2015 (idempotent)
 python run.py --source temperature --backfill  # one-shot ERA5 heat history back to 2021 (idempotent)
 
 # api (from api/, venv active)

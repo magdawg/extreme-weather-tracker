@@ -13,6 +13,9 @@ export interface EventProperties {
   intensity_norm: number | null;
   started_at: string | null;
   country: string | null;
+  // Per-event "more info" link from the provider (currently only GDACS).
+  // Falls back to the provider's homepage in the UI when null.
+  url: string | null;
 }
 
 export interface EventFeature {
