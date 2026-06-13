@@ -74,6 +74,9 @@ export default function Page() {
   const [cutoffMs, setCutoffMs] = useState<number | null>(null); // null = show all
   const [playing, setPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  // ENSO sparkline above the time slider. Collapsed by default — the pill
+  // toggle in the secondary controls row reveals it.
+  const [ensoBandOpen, setEnsoBandOpen] = useState(false);
   const [windowMonths, setWindowMonths] = useState<number | null>(1); // default: last 1 month
   // When set, view exactly this calendar month (overrides slider/window/play).
   const [monthFilter, setMonthFilter] = useState<{ year: number; month: number } | null>(null);
@@ -532,10 +535,39 @@ export default function Page() {
             playing={playing}
             onTogglePlay={togglePlay}
             oni={enso?.series}
+            showEnsoBand={ensoBandOpen}
             onShowEnsoInfo={() => setEnsoInfo("band")}
           />
         )}
         <div className="mt-2.5 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 sm:mt-3 sm:gap-x-5">
+          {enso?.series && enso.series.length > 0 && monthFilter === null && (
+            <button
+              type="button"
+              role="switch"
+              aria-checked={ensoBandOpen}
+              aria-label={
+                ensoBandOpen ? "Hide ENSO sparkline" : "Show ENSO sparkline"
+              }
+              title="El Niño–Southern Oscillation — NOAA Oceanic Niño Index"
+              onClick={() => setEnsoBandOpen((v) => !v)}
+              className={`group inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md ${FOCUS}`}
+            >
+              <span className="text-[10px] font-medium uppercase tracking-wide text-white/55 transition group-hover:text-white/90">
+                ENSO
+              </span>
+              <span
+                className={`relative inline-block h-3.5 w-7 rounded-full transition ${
+                  ensoBandOpen ? "bg-indigo-500/80" : "bg-white/15"
+                }`}
+              >
+                <span
+                  className={`absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full bg-white shadow-sm transition-all ${
+                    ensoBandOpen ? "left-[1rem]" : "left-0.5"
+                  }`}
+                />
+              </span>
+            </button>
+          )}
           <MonthPicker
             value={monthFilter}
             years={years}

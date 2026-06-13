@@ -74,6 +74,9 @@ export default function EnsoStrip({
   onShowMonthlyInfo?: () => void;
   onHoverNino34?: (hovering: boolean) => void;
 }) {
+  // The whole panel collapses to just the headline + ONI reading by default —
+  // a glanceable badge that expands into the full breakdown on tap.
+  const [panelOpen, setPanelOpen] = useState(false);
   // The El Niño signal is tucked away collapsed by default — it's secondary
   // context to the current-state headline above it.
   const [signalOpen, setSignalOpen] = useState(false);
@@ -130,84 +133,100 @@ export default function EnsoStrip({
   return (
     <div
       className={`absolute right-4 top-4 z-10 px-3 py-2.5 sm:px-3.5 ${PANEL} ${
-        signalOpen ? "w-72 max-w-[calc(100vw-2rem)]" : "w-44 sm:w-52"
+        panelOpen && signalOpen ? "w-72 max-w-[calc(100vw-2rem)]" : "w-44 sm:w-52"
       }`}
     >
-      <div className="flex items-center gap-2">
-        <span
-          className="h-2.5 w-2.5 shrink-0 rounded-full"
-          style={{ backgroundColor: meta.hex, boxShadow: `0 0 8px ${meta.hex}` }}
-          aria-hidden="true"
-        />
-        <span className="text-[11px] font-medium uppercase tracking-wide text-white/45">
-          ENSO
-        </span>
-        <span
-          className="ml-auto text-xs font-semibold"
-          style={{ color: meta.hex }}
-        >
-          {label}
-        </span>
-      </div>
-
-      <div className="mt-1.5 flex items-baseline gap-2">
-        <span className="text-2xl font-semibold tabular-nums leading-none text-white">
-          {signed(current.anom)}
-        </span>
-        <Tooltip
-          side="bottom"
-          align="right"
-          label="Oceanic Niño Index — a 3-month average of sea-surface temperature in the highlighted Pacific region, in °C."
-        >
+      <button
+        type="button"
+        onClick={() => setPanelOpen((v) => !v)}
+        aria-expanded={panelOpen}
+        aria-label={panelOpen ? "Collapse ENSO panel" : "Expand ENSO panel"}
+        className={`-mx-1 block w-[calc(100%+0.5rem)] cursor-pointer rounded-md px-1 py-0.5 text-left transition hover:bg-white/5 ${FOCUS}`}
+      >
+        <div className="flex items-center gap-2">
           <span
-            className="cursor-help border-b border-dotted border-white/30 text-[11px] text-white/45"
-            onMouseEnter={() => onHoverNino34?.(true)}
-            onMouseLeave={() => onHoverNino34?.(false)}
-          >
-            ONI °C
+            className="h-2.5 w-2.5 shrink-0 rounded-full"
+            style={{ backgroundColor: meta.hex, boxShadow: `0 0 8px ${meta.hex}` }}
+            aria-hidden="true"
+          />
+          <span className="text-[11px] font-medium uppercase tracking-wide text-white/45">
+            ENSO
           </span>
-        </Tooltip>
-        {(rising || falling) && (
+          <span
+            className="ml-auto text-xs font-semibold"
+            style={{ color: meta.hex }}
+          >
+            {label}
+          </span>
+          <ChevronDownIcon
+            size={14}
+            className={`text-white/40 transition-transform ${panelOpen ? "" : "-rotate-90"}`}
+          />
+        </div>
+
+        <div className="mt-1.5 flex items-baseline gap-2">
+          <span className="text-2xl font-semibold tabular-nums leading-none text-white">
+            {signed(current.anom)}
+          </span>
           <Tooltip
             side="bottom"
             align="right"
-            className="ml-auto"
-            label={`${rising ? "Warming" : "Cooling"} — change of ${signed(delta)} °C vs the previous 3-month season`}
+            label="Oceanic Niño Index — a 3-month average of sea-surface temperature in the highlighted Pacific region."
           >
             <span
-              className={`flex items-center gap-0.5 text-[11px] tabular-nums ${
-                rising ? "text-rose-300" : "text-sky-300"
-              }`}
+              className="cursor-help border-b border-dotted border-white/30 text-[11px] text-white/45"
+              onMouseEnter={() => onHoverNino34?.(true)}
+              onMouseLeave={() => onHoverNino34?.(false)}
             >
-              <ChevronDownIcon
-                size={12}
-                className={rising ? "rotate-180" : ""}
-              />
-              {signed(delta)}
+              ONI °C
             </span>
           </Tooltip>
-        )}
-      </div>
+          {(rising || falling) && (
+            <Tooltip
+              side="bottom"
+              align="right"
+              className="ml-auto"
+              label={`${signed(delta)} °C change in comparison to the previous 3-month season`}
+            >
+              <span
+                className={`flex items-center gap-0.5 text-[11px] tabular-nums ${
+                  rising ? "text-rose-300" : "text-sky-300"
+                }`}
+              >
+                <ChevronDownIcon
+                  size={12}
+                  className={rising ? "rotate-180" : ""}
+                />
+                {signed(delta)}
+              </span>
+            </Tooltip>
+          )}
+        </div>
+      </button>
 
-      <p className="mt-1.5 text-[11px] leading-snug text-white/55">{context}</p>
+      {panelOpen && (
+        <>
+          <p className="mt-1.5 text-[11px] leading-snug text-white/55">{context}</p>
 
-      <div className="mt-1 flex items-end justify-between gap-2">
-        <p className="text-[10px] leading-tight text-white/35">
-          {oniPeriod} season
-        </p>
-        {onShowInfo && (
-          <button
-            type="button"
-            onClick={onShowInfo}
-            aria-label="What is ENSO / the El Niño index?"
-            className={`-mb-0.5 -mr-0.5 inline-flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-full text-white/40 transition hover:bg-white/10 hover:text-white/80 ${FOCUS}`}
-          >
-            <InfoIcon size={13} />
-          </button>
-        )}
-      </div>
+          <div className="mt-1 flex items-end justify-between gap-2">
+            <p className="text-[10px] leading-tight text-white/35">
+              {oniPeriod} season
+            </p>
+            {onShowInfo && (
+              <button
+                type="button"
+                onClick={onShowInfo}
+                aria-label="What is ENSO / the El Niño index?"
+                className={`-mb-0.5 -mr-0.5 inline-flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-full text-white/40 transition hover:bg-white/10 hover:text-white/80 ${FOCUS}`}
+              >
+                <InfoIcon size={13} />
+              </button>
+            )}
+          </div>
+        </>
+      )}
 
-      {monthlyCur && (
+      {panelOpen && monthlyCur && (
         <>
           <div className="my-2.5 h-px bg-white/10" />
           <button
@@ -234,7 +253,7 @@ export default function EnsoStrip({
             <Tooltip
               side="bottom"
               align="right"
-              label="The latest single month of sea-surface temperature in the highlighted Pacific region, in °C."
+              label="The latest single month of sea-surface temperature in the highlighted Pacific region."
             >
               <span
                 className="cursor-help border-b border-dotted border-white/30 text-[11px] text-white/45"
@@ -249,7 +268,7 @@ export default function EnsoStrip({
                 side="bottom"
                 align="right"
                 className="ml-auto"
-                label={`${mRising ? "Warming" : "Cooling"} — change of ${signed(mDelta)} °C vs the previous month`}
+                label={`${signed(mDelta)} °C change in comparison to the previous month`}
               >
                 <span
                   className={`flex items-center gap-0.5 text-[11px] tabular-nums ${
@@ -281,7 +300,7 @@ export default function EnsoStrip({
         </>
       )}
 
-      {signal && (
+      {panelOpen && signal && (
         <>
           <div className="my-2.5 h-px bg-white/10" />
           <button

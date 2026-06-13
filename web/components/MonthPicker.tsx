@@ -40,12 +40,9 @@ export default function MonthPicker({
         onClick={() => onChange(defaultMonth)}
         aria-label="View a single calendar month"
         title="View a single calendar month"
-        className={`flex cursor-pointer items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-xs font-medium text-white/80 transition hover:bg-white/10 hover:text-white sm:px-2.5 ${FOCUS}`}
+        className={`flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white/80 transition hover:bg-white/10 hover:text-white ${FOCUS}`}
       >
         <CalendarIcon size={14} />
-        {/* On mobile the icon alone keeps this control on the same row as the
-            window/speed selectors; the label returns on wider viewports. */}
-        <span className="hidden sm:inline">Month view</span>
       </button>
     );
   }

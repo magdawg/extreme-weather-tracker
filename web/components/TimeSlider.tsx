@@ -1,7 +1,7 @@
 "use client";
 
 import { ICON_BTN, FOCUS } from "@/lib/ui";
-import { PlayIcon, PauseIcon, InfoIcon } from "@/components/icons";
+import { InfoIcon, PauseIcon, PlayIcon } from "@/components/icons";
 import { ENSO_PHASES, ONI_MAX, phaseOf } from "@/lib/enso";
 import type { OniPoint } from "@/lib/types";
 
@@ -76,6 +76,7 @@ export default function TimeSlider({
   playing,
   onTogglePlay,
   oni,
+  showEnsoBand,
   onShowEnsoInfo,
 }: {
   minMs: number;
@@ -85,6 +86,7 @@ export default function TimeSlider({
   playing: boolean;
   onTogglePlay: () => void;
   oni?: OniPoint[];
+  showEnsoBand?: boolean;
   onShowEnsoInfo?: () => void;
 }) {
   const atNow = valueMs >= maxMs;
@@ -95,52 +97,43 @@ export default function TimeSlider({
       ? Math.min(100, Math.max(0, ((valueMs - minMs) / (maxMs - minMs)) * 100))
       : 0;
 
-  const hasBand = !!oni && oni.length > 0;
+  const hasBand = !!oni && oni.length > 0 && !!showEnsoBand;
 
   return (
     <div className="flex flex-col gap-1.5">
       {hasBand && (
-        // Spacer widths mirror the controls row below (play button + the two
-        // date labels) so the band column lines up exactly with the range
-        // input's flex-1 column.
-        <div className="flex items-end gap-2 sm:gap-3">
-          <span className="w-9 shrink-0" aria-hidden="true" />
-          <span className="w-[4.5rem] shrink-0" aria-hidden="true" />
-          <div className="min-w-0 flex-1">
-            {/* Label + legend so the sparkline isn't a mystery shape: this is
-                the El Niño / La Niña index over the same dates as the slider. */}
-            <div className="mb-1 flex items-center gap-x-2.5 gap-y-0.5 text-[10px] leading-none text-white/45">
-              <span
-                className="font-medium uppercase tracking-wide text-white/55"
-                title="El Niño–Southern Oscillation — NOAA Oceanic Niño Index"
+        // Column widths mirror the controls row below (play button + start
+        // date label) so the band lines up exactly with the slider.
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex w-9 shrink-0 items-center justify-center">
+            {onShowEnsoInfo && (
+              <button
+                type="button"
+                onClick={onShowEnsoInfo}
+                aria-label="What is ENSO / the El Niño index?"
+                className={`inline-flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded-full text-white/40 transition hover:bg-white/10 hover:text-white/80 ${FOCUS}`}
               >
-                ENSO
-              </span>
-              <span className="flex items-center gap-1">
-                <span
-                  className="h-1.5 w-1.5 rounded-full"
-                  style={{ backgroundColor: ENSO_PHASES["el-nino"].hex }}
-                />
-                El Niño
-              </span>
-              <span className="flex items-center gap-1">
-                <span
-                  className="h-1.5 w-1.5 rounded-full"
-                  style={{ backgroundColor: ENSO_PHASES["la-nina"].hex }}
-                />
-                La Niña
-              </span>
-              {onShowEnsoInfo && (
-                <button
-                  type="button"
-                  onClick={onShowEnsoInfo}
-                  aria-label="What is ENSO / the El Niño index?"
-                  className={`ml-0.5 inline-flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded-full text-white/40 transition hover:bg-white/10 hover:text-white/80 ${FOCUS}`}
-                >
-                  <InfoIcon size={12} />
-                </button>
-              )}
-            </div>
+                <InfoIcon size={12} />
+              </button>
+            )}
+          </div>
+          <div className="flex w-[4.5rem] shrink-0 flex-col items-start gap-0.5 text-[10px] leading-none text-white/45">
+            <span className="flex items-center gap-1">
+              <span
+                className="h-1.5 w-1.5 rounded-full"
+                style={{ backgroundColor: ENSO_PHASES["el-nino"].hex }}
+              />
+              El Niño
+            </span>
+            <span className="flex items-center gap-1">
+              <span
+                className="h-1.5 w-1.5 rounded-full"
+                style={{ backgroundColor: ENSO_PHASES["la-nina"].hex }}
+              />
+              La Niña
+            </span>
+          </div>
+          <div className="min-w-0 flex-1">
             <EnsoBand oni={oni!} minMs={minMs} maxMs={maxMs} />
           </div>
           <span className="w-[4.5rem] shrink-0" aria-hidden="true" />
