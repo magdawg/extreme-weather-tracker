@@ -258,15 +258,27 @@ export default function Page() {
     return d.getTime();
   }, [cutoff, windowMonths]);
 
+  // Parse `started_at` to ms once per `features` reference. The time filter
+  // below runs on every slider tick (every 120 ms during playback); without
+  // this cache, each tick allocated O(features) Date objects, which blocked the
+  // main thread once the dataset grew past a few thousand events.
+  const startedAtMs = useMemo(
+    () =>
+      features.map((f) =>
+        f.properties.started_at
+          ? new Date(f.properties.started_at).getTime()
+          : null,
+      ),
+    [features],
+  );
+
   // A pinned month shows exactly that calendar month and ignores the slider /
   // window. Otherwise, reveal events chronologically up to the selected date;
   // if a window is set, also clip off anything older than `lowerMs`.
   const timeFiltered = useMemo(
     () =>
-      features.filter((f) => {
-        const s = f.properties.started_at
-          ? new Date(f.properties.started_at).getTime()
-          : null;
+      features.filter((f, i) => {
+        const s = startedAtMs[i];
         if (monthRange) {
           // Undated events can't be placed in a specific month.
           return s !== null && s >= monthRange.start && s < monthRange.end;
@@ -276,7 +288,7 @@ export default function Page() {
         if (s > cutoff) return false;
         return lowerMs === null || s >= lowerMs;
       }),
-    [features, cutoff, atNow, lowerMs, monthRange],
+    [features, startedAtMs, cutoff, atNow, lowerMs, monthRange],
   );
 
   // Source counts reflect the time window only — so toggling a source off

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import maplibregl from "maplibre-gl";
 import { MapboxOverlay } from "@deck.gl/mapbox";
 import { ScatterplotLayer, GeoJsonLayer, TextLayer } from "@deck.gl/layers";
@@ -135,6 +135,26 @@ function getTooltip({ object }: { object?: MapPoint | TeleFeature }) {
   };
 }
 
+// Module-scope accessors keep their reference identity across renders so deck.gl
+// doesn't flag attributes as "changed" on every effect run — which on the
+// HeatmapLayer would otherwise force a full re-aggregation (recreating the
+// transform-feedback shader and re-rendering the weight texture).
+const getPointPosition = (d: MapPoint) => d.position;
+const getPointRadius = (d: MapPoint) => d.radius;
+const getPointFillColor = (d: MapPoint): [number, number, number, number] => [
+  d.color[0],
+  d.color[1],
+  d.color[2],
+  170,
+];
+const getPointLineColor = (d: MapPoint): [number, number, number, number] => [
+  d.color[0],
+  d.color[1],
+  d.color[2],
+  255,
+];
+const getPointWeight = (d: MapPoint) => d.intensity;
+
 function scatterLayer(points: MapPoint[]) {
   return new ScatterplotLayer<MapPoint>({
     id: "events",
@@ -145,10 +165,10 @@ function scatterLayer(points: MapPoint[]) {
     radiusMinPixels: 3,
     radiusMaxPixels: 40,
     lineWidthMinPixels: 1,
-    getPosition: (d) => d.position,
-    getRadius: (d) => d.radius,
-    getFillColor: (d) => [d.color[0], d.color[1], d.color[2], 170],
-    getLineColor: (d) => [d.color[0], d.color[1], d.color[2], 255],
+    getPosition: getPointPosition,
+    getRadius: getPointRadius,
+    getFillColor: getPointFillColor,
+    getLineColor: getPointLineColor,
   });
 }
 
@@ -244,11 +264,15 @@ function heatLayer(points: MapPoint[]) {
   return new HeatmapLayer<MapPoint>({
     id: "heat",
     data: points,
-    getPosition: (d) => d.position,
-    getWeight: (d) => d.intensity,
+    getPosition: getPointPosition,
+    getWeight: getPointWeight,
     radiusPixels: 45,
     intensity: 1,
     threshold: 0.05,
+    // Default is 2048 — a 4-megapixel texture rendered on every data/viewport
+    // change. 1024 quarters the GPU work per re-aggregation with no visible
+    // quality loss at globe-scale zooms.
+    weightsTextureSize: 1024,
   });
 }
 
@@ -311,22 +335,35 @@ export default function MapView({
     };
   }, []);
 
+  // Stable points reference for an unchanged `features` array — critical for
+  // the heatmap: deck.gl treats a new data reference as "data changed", which
+  // rebuilds the transform-feedback shader and re-renders the weight texture.
+  // Without this memo, toggling teleconnections or the Niño-3.4 hover would
+  // recompute the points and force a full heatmap re-aggregation.
+  const points = useMemo(() => toPoints(features), [features]);
+
+  // Same reasoning for the active data layer — memoize so toggles to other
+  // overlays don't construct a fresh HeatmapLayer instance with churned props.
+  const dataLayer = useMemo(
+    () => (heatmap ? heatLayer(points) : scatterLayer(points)),
+    [points, heatmap],
+  );
+
   // Re-render layers whenever the filtered data or view mode changes.
   useEffect(() => {
     const overlay = overlayRef.current;
     if (!overlay) return;
-    const points = toPoints(features);
     // Zones first so they render beneath the dots/heatmap; events stay on top
     // and win hover/click picking.
     overlay.setProps({
       layers: [
         ...(teleconnections ? [teleLayer()] : []),
-        heatmap ? heatLayer(points) : scatterLayer(points),
+        dataLayer,
         // On top of everything so the region outline + label read clearly on hover.
         ...(highlightNino34 ? nino34Layers() : []),
       ],
     });
-  }, [features, heatmap, teleconnections, highlightNino34]);
+  }, [dataLayer, teleconnections, highlightNino34]);
 
   // Outer div owns the absolute sizing. The inner div is maplibre's container —
   // maplibre adds `.maplibregl-map { position: relative }` to it, which would
