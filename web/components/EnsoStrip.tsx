@@ -77,6 +77,10 @@ export default function EnsoStrip({
   // The El Niño signal is tucked away collapsed by default — it's secondary
   // context to the current-state headline above it.
   const [signalOpen, setSignalOpen] = useState(false);
+  // Latest month is the secondary read. On a phone the card runs long, so it's
+  // collapsed behind a tap there; on the roomier desktop layout it's always
+  // shown (the `sm:` rules below ignore this state).
+  const [monthlyOpen, setMonthlyOpen] = useState(false);
 
   const current = enso?.current;
   if (!current) return null;
@@ -206,15 +210,27 @@ export default function EnsoStrip({
       {monthlyCur && (
         <>
           <div className="my-2.5 h-px bg-white/10" />
-          <div className="flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={() => setMonthlyOpen((v) => !v)}
+            aria-expanded={monthlyOpen}
+            className={`-mx-1 flex w-[calc(100%+0.5rem)] items-center justify-between rounded-md px-1 py-0.5 text-left transition hover:bg-white/5 sm:pointer-events-none sm:hover:bg-transparent ${FOCUS}`}
+          >
             <span className="text-[11px] font-semibold uppercase tracking-wider text-white/55">
               Latest month
             </span>
-          </div>
-          <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-lg font-semibold tabular-nums leading-none text-white/90">
-              {signed(monthlyCur.anom)}
-            </span>
+            <ChevronDownIcon
+              size={14}
+              className={`text-white/40 transition-transform sm:hidden ${
+                monthlyOpen ? "" : "-rotate-90"
+              }`}
+            />
+          </button>
+          <div className={`${monthlyOpen ? "" : "hidden"} sm:block`}>
+            <div className="mt-1 flex items-baseline gap-2">
+              <span className="text-lg font-semibold tabular-nums leading-none text-white/90">
+                {signed(monthlyCur.anom)}
+              </span>
             <Tooltip
               side="bottom"
               align="right"
@@ -260,6 +276,7 @@ export default function EnsoStrip({
                 <InfoIcon size={13} />
               </button>
             )}
+            </div>
           </div>
         </>
       )}

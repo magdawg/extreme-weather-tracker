@@ -402,8 +402,10 @@ export default function Page() {
 
       {/* Left control panel */}
       <div
-        className={`ewt-scroll absolute left-4 top-4 z-10 flex w-72 max-w-[calc(100vw-2rem)] flex-col ${PANEL} ${
-          panelOpen ? "max-h-[calc(100vh-2rem)] overflow-y-auto p-4" : "px-4 py-3"
+        className={`ewt-scroll absolute left-4 top-4 z-10 flex max-w-[calc(100vw-2rem)] flex-col ${PANEL} ${
+          panelOpen
+            ? "w-72 max-h-[calc(100vh-2rem)] overflow-y-auto p-4"
+            : "w-auto px-4 py-3 sm:w-72"
         }`}
       >
         <button
@@ -414,11 +416,18 @@ export default function Page() {
         >
           <h1 className="flex items-center gap-2 text-base font-semibold tracking-tight">
             <GlobeIcon size={18} className="shrink-0 text-indigo-300" />
-            Extreme Weather Tracker
+            {/* Collapsed on a phone, the title would overlap the ENSO card top-
+                right, so shrink to just the globe; the text returns on tap (when
+                open) and on larger screens. */}
+            <span className={panelOpen ? "" : "hidden sm:inline"}>
+              Extreme Weather Tracker
+            </span>
           </h1>
           <ChevronDownIcon
             size={14}
-            className={`shrink-0 text-white/45 transition-transform ${panelOpen ? "" : "-rotate-90"}`}
+            className={`shrink-0 text-white/45 transition-transform ${
+              panelOpen ? "" : "-rotate-90 hidden sm:block"
+            }`}
           />
         </button>
 

@@ -126,8 +126,9 @@ export default function EnsoInfoDialog({
               </li>
             </ul>
             <p className="mt-3 text-sm leading-relaxed opacity-75">
-              The small arrow is the <span className="opacity-90">trend</span> —
-              the change versus the previous 3-month season — so red ↑ means the
+              The small arrow is the <span className="opacity-90">trend</span>{" "}
+              — the change versus the previous 3-month season — so red ↑ means
+              the
               Pacific is warming toward El Niño, blue ↓ means it&apos;s cooling.
               The line beneath shows how far the index sits from the nearest
               El Niño / La Niña threshold.
@@ -158,8 +159,9 @@ export default function EnsoInfoDialog({
             </h3>
             <p className="mt-1.5 text-sm leading-relaxed opacity-75">
               The headline ENSO value above is the{" "}
-              <span className="opacity-90">ONI</span>, a <em>3-month</em> running
-              mean. That smoothing means its newest value is always centred on a
+              <span className="opacity-90">ONI</span>, a <em>3-month</em>{" "}
+              running mean. That smoothing means its newest value is always
+              centred on a
               month or so ago (e.g. a &ldquo;Mar–Apr–May&rdquo; season). This
               monthly figure has <span className="opacity-90">no such lag</span>,
               so it&apos;s the freshest read on the Pacific — useful for spotting
@@ -169,8 +171,9 @@ export default function EnsoInfoDialog({
               The trade-offs: a single month is{" "}
               <span className="opacity-90">noisier</span> than a 3-month average,
               and it sits on a fixed{" "}
-              <span className="opacity-90">1991–2020 baseline</span> rather than
-              the ONI&apos;s sliding 30-year base. So it isn&apos;t a like-for-like
+              <span className="opacity-90">1991–2020 baseline</span>{" "}
+              rather than the ONI&apos;s sliding 30-year base. So it isn&apos;t a
+              like-for-like
               ONI value, and we deliberately <em>don&apos;t</em> use it to label
               the El Niño / La Niña phase.
             </p>
@@ -230,8 +233,9 @@ export default function EnsoInfoDialog({
               raw counts, on purpose: the total number of events drifts as data
               sources and backfills change over time, and shares cancel that
               out. The figure is{" "}
-              <span className="opacity-90">correlational, not a forecast</span> —
-              a few years of events can&apos;t prove El Niño <em>caused</em> any
+              <span className="opacity-90">correlational, not a forecast</span>{" "}
+              — a few years of events can&apos;t prove El Niño <em>caused</em>{" "}
+              any
               shift, and the signal only appears once enough events overlap the
               El Niño periods in the record.
             </p>
