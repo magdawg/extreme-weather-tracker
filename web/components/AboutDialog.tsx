@@ -112,7 +112,7 @@ export default function AboutDialog({ onClose }: { onClose: () => void }) {
         <div className="my-4 h-px bg-white/10" />
 
         <p className="text-sm leading-relaxed opacity-75">
-          Made with ❤️ in Portugal | Copyright Magda Kowalska
+          Made with ❤️ in Portugal · Copyright Magda Kowalska
         </p>
       </div>
     </div>
