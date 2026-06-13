@@ -1,6 +1,11 @@
 "use client";
 
-import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon } from "@/components/icons";
+import {
+  CalendarIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  TimelineIcon,
+} from "@/components/icons";
 import { FOCUS } from "@/lib/ui";
 
 // Toggles a single-calendar-month view. Off by default — the time slider +
@@ -33,11 +38,14 @@ export default function MonthPicker({
     return (
       <button
         onClick={() => onChange(defaultMonth)}
+        aria-label="View a single calendar month"
         title="View a single calendar month"
-        className={`flex cursor-pointer items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs font-medium text-white/80 transition hover:bg-white/10 hover:text-white ${FOCUS}`}
+        className={`flex cursor-pointer items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-xs font-medium text-white/80 transition hover:bg-white/10 hover:text-white sm:px-2.5 ${FOCUS}`}
       >
         <CalendarIcon size={14} />
-        Month view
+        {/* On mobile the icon alone keeps this control on the same row as the
+            window/speed selectors; the label returns on wider viewports. */}
+        <span className="hidden sm:inline">Month view</span>
       </button>
     );
   }
@@ -65,11 +73,11 @@ export default function MonthPicker({
       <button
         onClick={() => onChange(null)}
         aria-pressed="true"
-        aria-label="Exit month view"
-        title="Exit month view"
+        aria-label="Back to timeline"
+        title="Back to timeline"
         className={`flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg border border-indigo-400/40 bg-indigo-500/25 text-indigo-100 transition hover:bg-indigo-500/35 ${FOCUS}`}
       >
-        <CalendarIcon size={14} />
+        <TimelineIcon size={15} />
       </button>
       <div className="flex items-center gap-0.5">
         <button

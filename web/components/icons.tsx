@@ -98,6 +98,15 @@ export const CalendarIcon = (p: IconProps) => (
   </Svg>
 );
 
+// A slider/timeline glyph: a horizontal rail with a thumb — used to return
+// from the pinned-month view back to the scrubbing timeline.
+export const TimelineIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M3 12h18" />
+    <circle cx="9" cy="12" r="2.9" fill="currentColor" stroke="none" />
+  </Svg>
+);
+
 // --- Hazard glyphs (carry the hazard's color via currentColor) -------------
 
 const Storm = (p: IconProps) => (
