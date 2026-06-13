@@ -52,7 +52,7 @@ export default function TimeSlider({
         {playing ? <PauseIcon size={15} /> : <PlayIcon size={15} />}
       </button>
 
-      <span className="w-14 shrink-0 text-[11px] tabular-nums leading-tight text-white/45 sm:w-[4.5rem] sm:text-xs">
+      <span className="w-[4.5rem] shrink-0 whitespace-nowrap text-[11px] tabular-nums leading-tight text-white/45 sm:text-xs">
         {fmt(minMs)}
       </span>
 
@@ -74,7 +74,7 @@ export default function TimeSlider({
       />
 
       <span
-        className={`w-14 shrink-0 text-right text-[11px] tabular-nums leading-tight sm:w-[4.5rem] sm:text-xs ${
+        className={`w-[4.5rem] shrink-0 whitespace-nowrap text-right text-[11px] tabular-nums leading-tight sm:text-xs ${
           atNow ? "font-semibold text-indigo-200" : "text-white/80"
         }`}
       >
