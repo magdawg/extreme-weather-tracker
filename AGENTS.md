@@ -43,6 +43,20 @@ If you add a hazard type, update all three locations plus the map metadata
 (color/emoji/label) in `web/lib/hazards.ts`, or it will silently disappear from
 the UI and be rejected by the API filter.
 
+**The one sanctioned exception:** ENSO (El Niño / La Niña) is a single *global*
+index, not a located hazard, so forcing it into the `Event` model would be
+wrong. It lives in its own `enso_oni` table, its own ingestion module
+(`ingestion/enso.py`, run via `--source enso`), and its own `/enso` endpoint —
+and the events pipeline never sees it. If you need other global, non-located
+context layers, follow this pattern rather than bending the `Event` contract.
+
+A second, frontend-only variant of the same principle: the El Niño
+**teleconnection overlay** (`web/lib/teleconnections.ts`) is a hand-authored
+static GeoJSON of *expected* impact zones (wetter / drier / hotter / stormier),
+toggled on the map alongside the live hazards. It's reference/forecast context,
+not observed events, so it lives entirely in the web layer and never touches the
+DB or the `Event` model.
+
 ## Repo layout
 
 ```
@@ -51,7 +65,8 @@ api/         FastAPI read-only API (Vercel Python functions)
   vercel.json     @vercel/python build config
   requirements.txt
 db/
-  schema.sql      the single `events` table + PostGIS + indexes
+  schema.sql      the single `events` table + PostGIS + indexes; plus `enso_oni`
+                  (the global ENSO/El Niño index — deliberately NOT an event)
 ingestion/   Python ETL — run by GitHub Actions every 12h or locally
   run.py          orchestrator; --source picks a subset
   config.py       env-driven config (thresholds, grid size, lookback)
@@ -82,8 +97,9 @@ cd ingestion
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp ../.env.example ../.env                 # fill DATABASE_URL + FIRMS_MAP_KEY
-python run.py                              # all sources
+python run.py                              # all sources + the ENSO index
 python run.py --source gdacs               # one source (also: firms, temperature)
+python run.py --source enso                # just the ENSO/ONI index (writes enso_oni)
 ```
 Free FIRMS key: <https://firms.modaps.eosdis.nasa.gov/api/map_key/>.
 
@@ -98,6 +114,8 @@ Endpoints:
 - `GET /` → health
 - `GET /events?hazard=storm,flood&from=ISO&to=ISO&bbox=w,s,e,n&min_intensity=0.5&limit=5000` → GeoJSON FeatureCollection
 - `GET /stats` → per-hazard counts + mean intensity (powers the right panel)
+- `GET /enso` → `{current, series}` Oceanic Niño Index (El Niño / La Niña);
+  global climate context, **not** events — powers the ENSO strip + time-slider band
 
 ### Frontend
 ```bash

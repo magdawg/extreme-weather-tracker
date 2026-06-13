@@ -12,6 +12,7 @@ import time
 
 import config
 import db
+import enso
 from sources import firms, gdacs, temperature
 
 
@@ -62,10 +63,30 @@ SOURCES = {
     "temperature": run_temperature,
 }
 
+# ENSO is not an Event source — it writes its own enso_oni table, not events —
+# so it lives outside SOURCES and runs as a separate step. It's selectable via
+# `--source enso` and is included in a full (no --source) run.
+def run_enso() -> int:
+    # Pull both ENSO products — the smoothed ONI (enso_oni) and the fresher
+    # monthly Niño-3.4 anomaly (enso_nino34) — and write them in one connection.
+    # Fetch before connecting so we never hold a Neon connection across HTTP.
+    oni = enso.fetch()
+    nino34 = enso.fetch_nino34_monthly()
+    conn = db.connect(config.DATABASE_URL)
+    try:
+        return enso.upsert(conn, oni) + enso.upsert_nino34(conn, nino34)
+    finally:
+        conn.close()
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Extreme weather ingestion")
-    parser.add_argument("--source", nargs="*", choices=list(SOURCES), help="subset of sources")
+    parser.add_argument(
+        "--source",
+        nargs="*",
+        choices=list(SOURCES) + ["enso"],
+        help="subset of sources (also: 'enso' for the ENSO/ONI climate index)",
+    )
     parser.add_argument(
         "--backfill",
         action="store_true",
@@ -75,12 +96,17 @@ def main() -> int:
     args = parser.parse_args()
 
     config.require("DATABASE_URL", config.DATABASE_URL)
-    selected = args.source or list(SOURCES)
+    selected = args.source or list(SOURCES) + ["enso"]
 
     total = 0
     for name in selected:
         started = time.time()
         try:
+            if name == "enso":
+                # Not an Event source: writes enso_oni and returns a row count.
+                n = run_enso()
+                print(f"[enso] upserted {n} ONI + monthly Niño-3.4 rows in {time.time() - started:.1f}s")
+                continue
             if name == "gdacs" and args.backfill:
                 # Streams + writes per year; connects per batch internally.
                 n = run_gdacs_backfill()

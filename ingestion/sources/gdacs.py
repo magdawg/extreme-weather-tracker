@@ -48,9 +48,15 @@ from normalize import (
 SEARCH_URL = "https://www.gdacs.org/gdacsapi/api/events/geteventlist/SEARCH"
 MAP_URL = "https://www.gdacs.org/gdacsapi/api/events/geteventlist/MAP"
 
-# Oldest month a --backfill run reaches back to. GDACS holds events older than
-# this, but 2021 is as far back as the project cares to store.
-BACKFILL_FROMDATE = date(2021, 1, 1)
+# Oldest month a --backfill run reaches back to. Set to 2015 to span the strong
+# 2015-16 El Niño (the start of the ENSO window the timeline strip visualizes);
+# the catalogue itself goes back to 1985-01-01 (eventid=1), but 2015 is as far
+# back as the project cares to store. CAUTION: GDACS's detection of low-severity
+# (Green) events ramps up across this window — ~100 floods/yr in 2015 vs ~600 in
+# 2023 — so raw event *counts* are not comparable across ENSO phases (the 2015-16
+# El Niño looks artificially quiet). Compare Orange/Red intensity, which is flat
+# back to the 1990s. See EM-DAT's "exclude pre-2000 / low-impact" guidance.
+BACKFILL_FROMDATE = date(2015, 1, 1)
 
 # Per-(type, month) page safety cap. Real volume never approaches this (busiest
 # is ~250 wildfires/month ≈ 3 pages); it only guards against a runaway loop.

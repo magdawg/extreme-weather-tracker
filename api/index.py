@@ -22,6 +22,28 @@ DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
 VALID_HAZARDS = {"storm", "flood", "wildfire", "heat", "drought"}
 
+# NOAA CPC's 12 overlapping 3-month ENSO seasons, in calendar order. The index
+# (1-based) is also the season's *centre* month — DJF is centred on Jan, NDJ on
+# Dec — which is how we place each ONI reading on a real timeline.
+ENSO_SEASONS = [
+    "DJF", "JFM", "FMA", "MAM", "AMJ", "MJJ",
+    "JJA", "JAS", "ASO", "SON", "OND", "NDJ",
+]
+_SEASON_MONTH = {s: i + 1 for i, s in enumerate(ENSO_SEASONS)}
+
+# El Niño ≥ +0.5, La Niña ≤ −0.5 (°C ONI). Mirrored in ingestion/enso.py and
+# web/lib/enso.ts — keep all three in sync.
+EL_NINO_THRESHOLD = 0.5
+LA_NINA_THRESHOLD = -0.5
+
+
+def enso_phase(anom: float) -> str:
+    if anom >= EL_NINO_THRESHOLD:
+        return "el-nino"
+    if anom <= LA_NINA_THRESHOLD:
+        return "la-nina"
+    return "neutral"
+
 app = FastAPI(title="Extreme Weather Tracker API", version="0.1.0")
 
 # Hobby project: allow any origin. Tighten to your Vercel domain in prod.
@@ -61,6 +83,11 @@ def query(sql: str, params: tuple):
             cur.execute(sql, params)
             cols = [d[0] for d in cur.description]
             return [dict(zip(cols, row)) for row in cur.fetchall()]
+    except Exception:
+        # Roll back so a failed statement (e.g. a table that doesn't exist yet)
+        # doesn't return a connection to the pool stuck in an aborted txn.
+        conn.rollback()
+        raise
     finally:
         pool.putconn(conn)
 
@@ -144,6 +171,94 @@ def events(
         for r in rows
     ]
     return {"type": "FeatureCollection", "features": features}
+
+
+@app.get("/enso")
+def enso(response: Response):
+    """The ENSO (El Niño / La Niña) state as the Oceanic Niño Index series.
+
+    Returns the full ONI history plus a `current` summary. ENSO is a single
+    global index, not a located hazard, so it has its own table and endpoint —
+    the events pipeline never special-cases it. Each season is placed on the
+    timeline at its centre month so the frontend can align it with the events.
+    """
+    response.headers["Cache-Control"] = (
+        "public, max-age=60, s-maxage=600, stale-while-revalidate=3600"
+    )
+    rows = query("SELECT year, season, anom FROM enso_oni", ())
+
+    # Order by real calendar time (year, then season position), dropping any row
+    # whose season label we don't recognise.
+    points = sorted(
+        (
+            {
+                "date": f"{r['year']:04d}-{_SEASON_MONTH[r['season']]:02d}-01",
+                "anom": float(r["anom"]),
+                "season": r["season"],
+                "year": r["year"],
+            }
+            for r in rows
+            if r["season"] in _SEASON_MONTH
+        ),
+        key=lambda p: p["date"],
+    )
+
+    series = [{"date": p["date"], "anom": p["anom"]} for p in points]
+    current = None
+    if points:
+        latest = points[-1]
+        current = {
+            "season": latest["season"],
+            "year": latest["year"],
+            "date": latest["date"],
+            "anom": latest["anom"],
+            "phase": enso_phase(latest["anom"]),
+        }
+
+    return {"current": current, "series": series, "monthly": _enso_monthly()}
+
+
+def _enso_monthly() -> Optional[dict]:
+    """The fresher, supplementary monthly Niño-3.4 SST anomaly.
+
+    Distinct from the ONI: a single calendar-month anomaly on a fixed 1991–2020
+    base, with no 3-month centring lag — so it's the most current read, but not a
+    drop-in ONI value and never used to classify the phase. We return only a
+    short recent tail (nothing plots the full history) plus the latest reading.
+    Guarded: if the table isn't migrated yet, the ONI still serves.
+    """
+    try:
+        rows = query("SELECT year, month, anom FROM enso_nino34", ())
+    except Exception:
+        return None
+
+    points = sorted(
+        (
+            {
+                "date": f"{r['year']:04d}-{r['month']:02d}-01",
+                "anom": float(r["anom"]),
+                "year": r["year"],
+                "month": r["month"],
+            }
+            for r in rows
+            if 1 <= r["month"] <= 12
+        ),
+        key=lambda p: p["date"],
+    )
+    if not points:
+        return None
+
+    recent = points[-24:]
+    latest = points[-1]
+    return {
+        "current": {
+            "year": latest["year"],
+            "month": latest["month"],
+            "date": latest["date"],
+            "anom": latest["anom"],
+        },
+        "series": [{"date": p["date"], "anom": p["anom"]} for p in recent],
+    }
 
 
 @app.get("/stats")

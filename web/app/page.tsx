@@ -18,14 +18,18 @@ import TimeSlider from "@/components/TimeSlider";
 import WindowSelect from "@/components/WindowSelect";
 import MonthPicker from "@/components/MonthPicker";
 import SpeedSelect from "@/components/SpeedSelect";
-import Legend from "@/components/Legend";
+import TeleconnectionLegend from "@/components/TeleconnectionLegend";
+import EnsoStrip from "@/components/EnsoStrip";
+import EnsoInfoDialog from "@/components/EnsoInfoDialog";
+import type { EnsoInfoTopic } from "@/components/EnsoInfoDialog";
 import AboutDialog from "@/components/AboutDialog";
 import EventDetails from "@/components/EventDetails";
 import type { SelectedEvent } from "@/components/EventDetails";
 import { GlobeIcon, InfoIcon, ChevronDownIcon } from "@/components/icons";
 import { PANEL, FOCUS } from "@/lib/ui";
-import { fetchEvents, timeChunks, DATA_START_YEAR } from "@/lib/api";
+import { fetchEvents, fetchEnso, timeChunks, DATA_START_YEAR } from "@/lib/api";
 import { HAZARD_ORDER } from "@/lib/hazards";
+import { ensoHazardSignal } from "@/lib/enso";
 import {
   SEVERITY_ORDER,
   matchesSeverity,
@@ -34,7 +38,7 @@ import {
 import type { Severity } from "@/lib/severity";
 import { SOURCE_ORDER, isKnownSource } from "@/lib/sources";
 import type { SourceId } from "@/lib/sources";
-import type { EventFeature, HazardType } from "@/lib/types";
+import type { EnsoData, EventFeature, HazardType } from "@/lib/types";
 
 // deck.gl + maplibre touch window/WebGL, so the map is client-only.
 const MapView = dynamic(() => import("@/components/MapView"), { ssr: false });
@@ -74,10 +78,19 @@ export default function Page() {
   // When set, view exactly this calendar month (overrides slider/window/play).
   const [monthFilter, setMonthFilter] = useState<{ year: number; month: number } | null>(null);
   const [heatmap, setHeatmap] = useState(false);
+  // El Niño teleconnection overlay — expected impact zones, off by default.
+  const [teleconnections, setTeleconnections] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
+  // Which ENSO explainer is open (the status card vs the timeline band), or null.
+  const [ensoInfo, setEnsoInfo] = useState<EnsoInfoTopic | null>(null);
+  // Highlight the Niño-3.4 region box on the map while its label is hovered.
+  const [nino34Hover, setNino34Hover] = useState(false);
   const [selected, setSelected] = useState<SelectedEvent | null>(null);
+  // ENSO state (El Niño / La Niña index) — global context, fetched once. A
+  // failed fetch just hides the ENSO UI; it never blocks the map.
+  const [enso, setEnso] = useState<EnsoData | null>(null);
   // Default panel state follows the viewport (open on desktop, collapsed on
   // mobile so the map is usable on first load), but user clicks override that.
   const isMobile = useSyncExternalStore(
@@ -154,6 +167,14 @@ export default function Page() {
   // True until every chunk has loaded — drives the subtle "loading history…"
   // hint without blocking the already-rendered map.
   const historyLoading = loadedChunks.size < chunks.length;
+
+  // Load ENSO once on mount. Best-effort: swallow errors so the map still works
+  // if the index is unavailable.
+  useEffect(() => {
+    fetchEnso()
+      .then(setEnso)
+      .catch(() => {});
+  }, []);
 
   const cutoff = cutoffMs ?? maxMs;
   const atNow = cutoff >= maxMs;
@@ -311,6 +332,14 @@ export default function Page() {
     [sourceFiltered, active, severity],
   );
 
+  // The El Niño signal compares the hazard mix during El Niño months against
+  // the full loaded record, so it intentionally uses every loaded event —
+  // independent of the time slider, window, and hazard/source filters.
+  const ensoSignal = useMemo(
+    () => (enso?.series.length ? ensoHazardSignal(features, enso.series) : null),
+    [features, enso],
+  );
+
   const toggle = (h: HazardType) =>
     setActive((prev) => {
       const next = new Set(prev);
@@ -334,11 +363,26 @@ export default function Page() {
 
   return (
     <main className="relative h-screen w-screen overflow-hidden">
-      <MapView features={visible} heatmap={heatmap} onSelect={setSelected} />
+      <MapView
+        features={visible}
+        heatmap={heatmap}
+        teleconnections={teleconnections}
+        highlightNino34={nino34Hover}
+        onSelect={setSelected}
+      />
 
       {selected && (
         <EventDetails event={selected} onClose={() => setSelected(null)} />
       )}
+
+      <EnsoStrip
+        enso={enso}
+        signal={ensoSignal}
+        onShowInfo={() => setEnsoInfo("card")}
+        onShowSignalInfo={() => setEnsoInfo("signal")}
+        onShowMonthlyInfo={() => setEnsoInfo("monthly")}
+        onHoverNino34={setNino34Hover}
+      />
 
       {/* About button — bottom-left corner */}
       <button
@@ -351,6 +395,10 @@ export default function Page() {
       </button>
 
       {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
+
+      {ensoInfo && (
+        <EnsoInfoDialog topic={ensoInfo} onClose={() => setEnsoInfo(null)} />
+      )}
 
       {/* Left control panel */}
       <div
@@ -432,9 +480,33 @@ export default function Page() {
                   />
                 </span>
               </button>
-              <div className="mt-3">
-                <Legend />
-              </div>
+
+              <div className="my-3 h-px bg-white/10" />
+              <button
+                type="button"
+                role="switch"
+                aria-checked={teleconnections}
+                onClick={() => setTeleconnections((v) => !v)}
+                className={`flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg px-1 py-1 text-left text-sm text-white/85 transition hover:text-white ${FOCUS}`}
+              >
+                <span>El Niño impact zones</span>
+                <span
+                  className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                    teleconnections ? "bg-indigo-500" : "bg-white/15"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                      teleconnections ? "translate-x-4" : "translate-x-0.5"
+                    }`}
+                  />
+                </span>
+              </button>
+              {teleconnections && (
+                <div className="mt-3">
+                  <TeleconnectionLegend />
+                </div>
+              )}
             </Section>
           </div>
         )}
@@ -450,6 +522,8 @@ export default function Page() {
             onChange={handleCutoffChange}
             playing={playing}
             onTogglePlay={togglePlay}
+            oni={enso?.series}
+            onShowEnsoInfo={() => setEnsoInfo("band")}
           />
         )}
         <div className="mt-2.5 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 sm:mt-3 sm:gap-x-5">

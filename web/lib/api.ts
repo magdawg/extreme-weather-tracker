@@ -1,4 +1,4 @@
-import type { FeatureCollection, HazardStat } from "./types";
+import type { EnsoData, FeatureCollection, HazardStat } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -56,6 +56,12 @@ export function timeChunks(nowMs: number): TimeChunk[] {
 export async function fetchStats(): Promise<{ by_hazard: HazardStat[] }> {
   const res = await fetch(`${API_URL}/stats`);
   if (!res.ok) throw new Error(`API /stats ${res.status}`);
+  return res.json();
+}
+
+export async function fetchEnso(): Promise<EnsoData> {
+  const res = await fetch(`${API_URL}/enso`);
+  if (!res.ok) throw new Error(`API /enso ${res.status}`);
   return res.json();
 }
 

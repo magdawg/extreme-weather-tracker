@@ -3,13 +3,15 @@
 import { useEffect, useRef } from "react";
 import maplibregl from "maplibre-gl";
 import { MapboxOverlay } from "@deck.gl/mapbox";
-import { ScatterplotLayer } from "@deck.gl/layers";
+import { ScatterplotLayer, GeoJsonLayer, TextLayer } from "@deck.gl/layers";
 import { HeatmapLayer } from "@deck.gl/aggregation-layers";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import { HAZARDS } from "@/lib/hazards";
 import { SEVERITIES, tierOf } from "@/lib/severity";
 import { toLngLat } from "@/lib/api";
+import { TELECONNECTIONS, TELE_IMPACTS } from "@/lib/teleconnections";
+import type { TeleFeature } from "@/lib/teleconnections";
 import type { EventFeature, EventProperties } from "@/lib/types";
 import type { SelectedEvent } from "@/components/EventDetails";
 
@@ -82,8 +84,25 @@ function esc(s: string) {
   );
 }
 
-function getTooltip({ object }: { object?: MapPoint }) {
-  if (!object?.props) return null;
+// A teleconnection zone tooltip — the expected El Niño impact for the region,
+// clearly flagged as the typical pattern rather than an observed event.
+function teleTooltip(f: TeleFeature) {
+  const imp = TELE_IMPACTS[f.properties.impact];
+  return {
+    html: `<div style="display:flex;align-items:center;gap:7px;font-weight:600;font-size:13px"><span style="width:10px;height:10px;border-radius:3px;background:${imp.hex};flex:none"></span><span>${esc(f.properties.name)}</span></div>
+      <div style="margin-top:5px;font-size:12px;color:${imp.hex};opacity:.95">${esc(imp.label)}</div>
+      <div style="margin-top:4px;font-size:11px;opacity:.7;max-width:230px;line-height:1.45">${esc(f.properties.note)}</div>
+      <div style="margin-top:6px;font-size:10px;opacity:.45">Typical El Niño pattern · not an observed event</div>`,
+  };
+}
+
+function getTooltip({ object }: { object?: MapPoint | TeleFeature }) {
+  // Teleconnection zones are GeoJSON features (`.properties.impact`); events are
+  // MapPoints (`.props`). Branch on shape so one handler serves both layers.
+  if (object && "properties" in object && object.properties?.impact) {
+    return teleTooltip(object);
+  }
+  if (!object || !("props" in object) || !object.props) return null;
   const p = object.props;
   const date = p.started_at
     ? new Date(p.started_at).toLocaleDateString(undefined, {
@@ -133,6 +152,94 @@ function scatterLayer(points: MapPoint[]) {
   });
 }
 
+function teleColor(
+  f: TeleFeature,
+  alpha: number,
+): [number, number, number, number] {
+  const c = TELE_IMPACTS[f.properties.impact].rgb;
+  return [c[0], c[1], c[2], alpha];
+}
+
+// Expected El Niño impact zones — translucent filled polygons drawn beneath the
+// event dots, so the live hazards stay readable and clickable on top.
+function teleLayer() {
+  return new GeoJsonLayer({
+    id: "teleconnections",
+    data: TELECONNECTIONS,
+    pickable: true,
+    stroked: true,
+    filled: true,
+    lineWidthUnits: "pixels",
+    lineWidthMinPixels: 1,
+    getLineWidth: 1,
+    getFillColor: (f) => teleColor(f as unknown as TeleFeature, 40),
+    getLineColor: (f) => teleColor(f as unknown as TeleFeature, 160),
+  });
+}
+
+// The Niño-3.4 region — the box NOAA averages sea-surface temperature over for
+// the ONI / monthly index: 5°N–5°S, 170°W–120°W. Drawn only while the user
+// hovers the "Niño-3.4" label on the ENSO card, so they can see *where* on the
+// globe the number comes from.
+const NINO34_REGION = {
+  type: "FeatureCollection" as const,
+  features: [
+    {
+      type: "Feature" as const,
+      properties: {},
+      geometry: {
+        type: "Polygon" as const,
+        coordinates: [
+          [
+            [-170, -5],
+            [-120, -5],
+            [-120, 5],
+            [-170, 5],
+            [-170, -5],
+          ],
+        ],
+      },
+    },
+  ],
+};
+
+// Centre of the box — where the label sits.
+const NINO34_CENTRE: [number, number] = [-145, 0];
+
+function nino34Layers() {
+  return [
+    new GeoJsonLayer({
+      id: "nino34",
+      data: NINO34_REGION,
+      pickable: false,
+      stroked: true,
+      filled: true,
+      lineWidthUnits: "pixels",
+      lineWidthMinPixels: 2,
+      getLineWidth: 2,
+      getFillColor: [52, 211, 153, 40],
+      getLineColor: [52, 211, 153, 220],
+    }),
+    new TextLayer<{ position: [number, number]; text: string }>({
+      id: "nino34-label",
+      data: [{ position: NINO34_CENTRE, text: "Niño-3.4" }],
+      pickable: false,
+      // The default font atlas is ASCII-only, which drops "ñ" — list the exact
+      // glyphs we render so the tilde-n is included.
+      characterSet: Array.from("Niño-3.4"),
+      getPosition: (d) => d.position,
+      getText: (d) => d.text,
+      getSize: 13,
+      getColor: [224, 242, 254, 255],
+      fontWeight: 600,
+      // A dark pill behind the text keeps it legible over the ocean basemap.
+      background: true,
+      getBackgroundColor: [11, 16, 32, 210],
+      backgroundPadding: [5, 3],
+    }),
+  ];
+}
+
 function heatLayer(points: MapPoint[]) {
   return new HeatmapLayer<MapPoint>({
     id: "heat",
@@ -148,10 +255,14 @@ function heatLayer(points: MapPoint[]) {
 export default function MapView({
   features,
   heatmap,
+  teleconnections,
+  highlightNino34,
   onSelect,
 }: {
   features: EventFeature[];
   heatmap: boolean;
+  teleconnections: boolean;
+  highlightNino34?: boolean;
   onSelect?: (event: SelectedEvent | null) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -205,10 +316,17 @@ export default function MapView({
     const overlay = overlayRef.current;
     if (!overlay) return;
     const points = toPoints(features);
+    // Zones first so they render beneath the dots/heatmap; events stay on top
+    // and win hover/click picking.
     overlay.setProps({
-      layers: [heatmap ? heatLayer(points) : scatterLayer(points)],
+      layers: [
+        ...(teleconnections ? [teleLayer()] : []),
+        heatmap ? heatLayer(points) : scatterLayer(points),
+        // On top of everything so the region outline + label read clearly on hover.
+        ...(highlightNino34 ? nino34Layers() : []),
+      ],
     });
-  }, [features, heatmap]);
+  }, [features, heatmap, teleconnections, highlightNino34]);
 
   // Outer div owns the absolute sizing. The inner div is maplibre's container —
   // maplibre adds `.maplibregl-map { position: relative }` to it, which would
