@@ -9,18 +9,27 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
+from email.utils import format_datetime, parsedate_to_datetime
 from typing import Optional
 
 import psycopg2
 import psycopg2.pool
-from fastapi import FastAPI, HTTPException, Query, Response
+from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
 VALID_HAZARDS = {"storm", "flood", "wildfire", "heat", "drought"}
+
+# Ingestion runs every 12h, so the dataset changes slowly. Cache aggressively
+# on Vercel's edge (12h s-maxage matches the ingestion cadence) so that on
+# Neon's free tier the DB mostly stays asleep and typical loads never reach
+# the origin. Browsers get a 5 min cache for fast in-session reloads, and
+# stale-while-revalidate covers the gap between the edge TTL expiring and
+# the next ingestion landing.
+CACHE_CONTROL = "public, max-age=300, s-maxage=43200, stale-while-revalidate=86400"
 
 # NOAA CPC's 12 overlapping 3-month ENSO seasons, in calendar order. The index
 # (1-based) is also the season's *centre* month — DJF is centred on Jan, NDJ on
@@ -62,22 +71,31 @@ app.add_middleware(
 # response and gzips it with the CORS headers already in place.)
 app.add_middleware(GZipMiddleware, minimum_size=500)
 
-# A tiny connection pool survives across warm serverless invocations.
-_pool: Optional[psycopg2.pool.SimpleConnectionPool] = None
+# A small connection pool survives across warm serverless invocations. Threaded
+# because FastAPI runs sync endpoints in starlette's threadpool — SimpleConnection-
+# Pool is documented as single-threaded and corrupts under concurrent getconn().
+_pool: Optional[psycopg2.pool.ThreadedConnectionPool] = None
 
 
-def get_pool() -> psycopg2.pool.SimpleConnectionPool:
+def get_pool() -> psycopg2.pool.ThreadedConnectionPool:
     global _pool
     if _pool is None:
         if not DATABASE_URL:
             raise HTTPException(500, "DATABASE_URL is not configured")
-        _pool = psycopg2.pool.SimpleConnectionPool(1, 4, dsn=DATABASE_URL)
+        _pool = psycopg2.pool.ThreadedConnectionPool(1, 4, dsn=DATABASE_URL)
     return _pool
 
 
 def query(sql: str, params: tuple):
     pool = get_pool()
-    conn = pool.getconn()
+    try:
+        conn = pool.getconn()
+    except psycopg2.pool.PoolError as exc:
+        # Pool exhausted under burst load — surface as a polite 503 instead of
+        # a 500. The 12h edge cache means this should be rare.
+        raise HTTPException(
+            503, "database is busy, retry shortly", headers={"Retry-After": "1"}
+        ) from exc
     try:
         with conn.cursor() as cur:
             cur.execute(sql, params)
@@ -92,13 +110,76 @@ def query(sql: str, params: tuple):
         pool.putconn(conn)
 
 
+# --- Freshness helpers ---------------------------------------------------
+#
+# Ingestion's upsert bumps `ingested_at` on conflict (see ingestion/db.py and
+# ingestion/enso.py), so MAX(ingested_at) is a real Last-Modified — it advances
+# when and only when the data backing this endpoint changed.
+
+_FRESHNESS_TABLES = {"events", "enso_oni"}  # whitelist; interpolated into SQL
+
+
+def _max_ingested(table: str) -> Optional[datetime]:
+    assert table in _FRESHNESS_TABLES
+    rows = query(f"SELECT MAX(ingested_at) AS m FROM {table}", ())
+    return rows[0]["m"] if rows and rows[0]["m"] else None
+
+
+def _check_freshness(
+    request: Request, response: Response, table: str
+) -> Optional[Response]:
+    """Stamp Cache-Control + Last-Modified; return a 304 if the client is current."""
+    last_modified = _max_ingested(table)
+    response.headers["Cache-Control"] = CACHE_CONTROL
+    if not last_modified:
+        return None
+    http_date = format_datetime(last_modified, usegmt=True)
+    response.headers["Last-Modified"] = http_date
+    ims_str = request.headers.get("if-modified-since")
+    if ims_str:
+        try:
+            ims = parsedate_to_datetime(ims_str)
+        except (TypeError, ValueError):
+            return None
+        # HTTP-date has 1-second resolution; truncate ours to match.
+        if ims >= last_modified.replace(microsecond=0):
+            return Response(
+                status_code=304,
+                headers={"Cache-Control": CACHE_CONTROL, "Last-Modified": http_date},
+            )
+    return None
+
+
+def _coerce_utc(dt: Optional[datetime]) -> Optional[datetime]:
+    """Treat naive query-string datetimes as UTC.
+
+    Postgres would otherwise compare them against `timestamptz` columns in the
+    *session's* timezone, silently shifting the boundary.
+    """
+    if dt is None or dt.tzinfo is not None:
+        return dt
+    return dt.replace(tzinfo=timezone.utc)
+
+
+# --- Endpoints -----------------------------------------------------------
+
 @app.get("/")
-def health():
+def health(response: Response):
+    """Liveness + DB reachability — used by uptime monitors, so it must fail loud
+    when Neon is unreachable rather than reporting ok."""
+    try:
+        query("SELECT 1", ())
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(503, "database unreachable") from exc
+    response.headers["Cache-Control"] = "no-store"
     return {"status": "ok", "service": "extreme-weather-tracker"}
 
 
 @app.get("/events")
 def events(
+    request: Request,
     response: Response,
     hazard: Optional[str] = Query(None, description="comma-separated hazard types"),
     from_: Optional[datetime] = Query(None, alias="from"),
@@ -108,22 +189,25 @@ def events(
     limit: int = Query(50000, ge=1, le=50000),
 ):
     """Return matching events as a GeoJSON FeatureCollection."""
-    # Ingestion runs every 12h, so the dataset changes slowly. Let Vercel's
-    # edge cache the response for 10 min (s-maxage), and serve stale up to
-    # 1h while it revalidates. Browsers get a short 60s cache so reloads
-    # within the same session are instant without going to the network.
-    response.headers["Cache-Control"] = (
-        "public, max-age=60, s-maxage=600, stale-while-revalidate=3600"
-    )
+    if (cached := _check_freshness(request, response, "events")) is not None:
+        return cached
+
+    from_ = _coerce_utc(from_)
+    to = _coerce_utc(to)
+    if from_ and to and from_ > to:
+        raise HTTPException(400, "'from' must be <= 'to'")
 
     where = ["geom IS NOT NULL", "intensity_norm >= %s"]
     params: list = [min_intensity]
 
-    if hazard:
+    if hazard is not None:
         hazards = [h.strip() for h in hazard.split(",") if h.strip() in VALID_HAZARDS]
-        if hazards:
-            where.append("hazard_type = ANY(%s)")
-            params.append(hazards)
+        if not hazards:
+            raise HTTPException(
+                400, f"hazard must be one of: {sorted(VALID_HAZARDS)}"
+            )
+        where.append("hazard_type = ANY(%s)")
+        params.append(hazards)
     if from_:
         where.append("COALESCE(ended_at, started_at) >= %s")
         params.append(from_)
@@ -135,6 +219,13 @@ def events(
             w, s, e, n = (float(x) for x in bbox.split(","))
         except ValueError:
             raise HTTPException(400, "bbox must be 'west,south,east,north'")
+        if not (-180 <= w <= 180 and -180 <= e <= 180):
+            raise HTTPException(400, "bbox longitudes must be in [-180, 180]")
+        if not (-90 <= s <= 90 and -90 <= n <= 90):
+            raise HTTPException(400, "bbox latitudes must be in [-90, 90]")
+        if s > n:
+            raise HTTPException(400, "bbox south must be <= north")
+        # Note: we allow w > e for envelopes crossing the antimeridian.
         where.append("geom && ST_MakeEnvelope(%s,%s,%s,%s,4326)")
         params.extend([w, s, e, n])
 
@@ -177,7 +268,7 @@ def events(
 
 
 @app.get("/enso")
-def enso(response: Response):
+def enso(request: Request, response: Response):
     """The ENSO (El Niño / La Niña) state as the Oceanic Niño Index series.
 
     Returns the full ONI history plus a `current` summary. ENSO is a single
@@ -185,9 +276,9 @@ def enso(response: Response):
     the events pipeline never special-cases it. Each season is placed on the
     timeline at its centre month so the frontend can align it with the events.
     """
-    response.headers["Cache-Control"] = (
-        "public, max-age=60, s-maxage=600, stale-while-revalidate=3600"
-    )
+    if (cached := _check_freshness(request, response, "enso_oni")) is not None:
+        return cached
+
     rows = query("SELECT year, season, anom FROM enso_oni", ())
 
     # Order by real calendar time (year, then season position), dropping any row
@@ -265,11 +356,11 @@ def _enso_monthly() -> Optional[dict]:
 
 
 @app.get("/stats")
-def stats(response: Response):
+def stats(request: Request, response: Response):
     """Counts and mean intensity per hazard — powers the 'scale of the problem' panel."""
-    response.headers["Cache-Control"] = (
-        "public, max-age=60, s-maxage=600, stale-while-revalidate=3600"
-    )
+    if (cached := _check_freshness(request, response, "events")) is not None:
+        return cached
+
     rows = query(
         """
         SELECT hazard_type,

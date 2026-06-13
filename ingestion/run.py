@@ -17,8 +17,8 @@ import enso
 from sources import firms, gdacs, temperature
 
 
-def run_gdacs(backfill: bool = False) -> list:
-    return gdacs.fetch(lookback_days=config.LOOKBACK_DAYS, backfill=backfill)
+def run_gdacs() -> list:
+    return gdacs.fetch(lookback_days=config.LOOKBACK_DAYS)
 
 
 def _upsert(events: list) -> int:
@@ -57,7 +57,7 @@ def run_temperature_backfill(from_year: int | None = None) -> int:
     return total
 
 
-def run_firms(backfill: bool = False) -> list:
+def run_firms() -> list:
     key = config.require("FIRMS_MAP_KEY", config.FIRMS_MAP_KEY)
     return firms.fetch(
         map_key=key,
@@ -69,7 +69,7 @@ def run_firms(backfill: bool = False) -> list:
     )
 
 
-def run_temperature(backfill: bool = False) -> list:
+def run_temperature() -> list:
     return temperature.fetch(lookback_days=config.LOOKBACK_DAYS)
 
 
@@ -136,12 +136,26 @@ def main() -> int:
             elif name == "temperature" and args.backfill:
                 n = run_temperature_backfill(from_year=args.from_year)
             else:
-                events = SOURCES[name](backfill=args.backfill)
+                events = SOURCES[name]()
                 n = _upsert(events)
             total += n
             print(f"[{name}] upserted {n} events in {time.time() - started:.1f}s")
         except Exception as exc:  # one source failing shouldn't kill the run
             print(f"[{name}] FAILED: {exc}", file=sys.stderr)
+
+    # Reclaim dead tuples + refresh stats once at the end so readers don't pay
+    # hint-bit dirtying on the pages we just wrote. Best-effort: a VACUUM
+    # failure shouldn't mask a successful ingestion.
+    if total > 0:
+        try:
+            conn = db.connect(config.DATABASE_URL)
+            try:
+                db.vacuum_analyze(conn, "events")
+                print("[vacuum] VACUUM (ANALYZE) events")
+            finally:
+                conn.close()
+        except Exception as exc:
+            print(f"[vacuum] FAILED: {exc}", file=sys.stderr)
 
     print(f"Done. {total} events upserted across {len(selected)} source(s).")
     return 0

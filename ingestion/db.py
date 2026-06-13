@@ -45,6 +45,23 @@ def connect(database_url: str):
     )
 
 
+def vacuum_analyze(conn, table: str = "events") -> None:
+    """Reclaim dead tuples and refresh planner stats on `table`.
+
+    Run after a batch of upserts so the next reader doesn't pay hint-bit
+    dirtying on every page (seen as `dirtied=N` in EXPLAIN BUFFERS) and the
+    planner has fresh row-count stats. VACUUM must run outside a transaction,
+    so we flip the connection to autocommit for this one statement.
+    """
+    prev = conn.autocommit
+    conn.autocommit = True
+    try:
+        with conn.cursor() as cur:
+            cur.execute(f"VACUUM (ANALYZE) {table}")
+    finally:
+        conn.autocommit = prev
+
+
 def upsert_events(conn, events: Iterable[Event]) -> int:
     rows = [
         {
