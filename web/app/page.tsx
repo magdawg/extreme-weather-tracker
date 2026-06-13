@@ -441,7 +441,7 @@ export default function Page() {
       </div>
 
       {/* Bottom time slider */}
-      <div className={`absolute bottom-4 left-1/2 z-10 w-[min(640px,90vw)] -translate-x-1/2 px-4 py-3 ${PANEL}`}>
+      <div className={`absolute bottom-3 left-1/2 z-10 w-[min(640px,calc(100vw-1.5rem))] -translate-x-1/2 px-3 py-2.5 sm:bottom-4 sm:px-4 sm:py-3 ${PANEL}`}>
         {!loading && monthFilter === null && (
           <TimeSlider
             minMs={minMs}
@@ -452,7 +452,7 @@ export default function Page() {
             onTogglePlay={togglePlay}
           />
         )}
-        <div className="mt-3 flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
+        <div className="mt-2.5 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 sm:mt-3 sm:gap-x-5">
           <MonthPicker
             value={monthFilter}
             years={years}
