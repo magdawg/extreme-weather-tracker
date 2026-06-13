@@ -466,7 +466,7 @@ export default function Page() {
             </>
           )}
         </div>
-        <div className="mt-2 text-center text-xs tabular-nums text-white/45">
+        <div className="mt-2 text-center text-[11px] leading-snug tabular-nums text-white/45 sm:text-xs">
           {loading ? (
             "Loading events…"
           ) : monthFilter ? (
@@ -484,7 +484,7 @@ export default function Page() {
                 ? atNow
                   ? " up to now"
                   : " up to the selected date"
-                : ` in the ${windowMonths} month${windowMonths > 1 ? "s" : ""} before ${atNow ? "now" : "the selected date"}`}
+                : ` · ${windowMonths} month${windowMonths > 1 ? "s" : ""} before ${atNow ? "now" : "the selected date"}`}
             </>
           )}
           {!loading && historyLoading && (
