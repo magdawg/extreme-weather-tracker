@@ -551,48 +551,63 @@ export default function Page() {
             onShowEnsoInfo={() => setEnsoInfo("band")}
           />
         )}
-        <div className="mt-2.5 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 sm:mt-3 sm:gap-x-5">
-          {enso?.series && enso.series.length > 0 && monthFilter === null && (
-            <button
-              type="button"
-              role="switch"
-              aria-checked={ensoBandOpen}
-              aria-label={
-                ensoBandOpen ? "Hide ENSO sparkline" : "Show ENSO sparkline"
-              }
-              title="El Niño–Southern Oscillation — NOAA Oceanic Niño Index"
-              onClick={() => setEnsoBandOpen((v) => !v)}
-              className={`group inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md ${FOCUS}`}
-            >
-              <span className="text-[10px] font-medium uppercase tracking-wide text-white/55 transition group-hover:text-white/90">
-                ENSO
-              </span>
-              <span
-                className={`relative inline-block h-3.5 w-7 rounded-full transition ${
-                  ensoBandOpen ? "bg-indigo-500/80" : "bg-white/15"
-                }`}
-              >
-                <span
-                  className={`absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full bg-white shadow-sm transition-all ${
-                    ensoBandOpen ? "left-[1rem]" : "left-0.5"
-                  }`}
-                />
-              </span>
-            </button>
-          )}
-          <MonthPicker
-            value={monthFilter}
-            years={years}
-            defaultMonth={defaultMonth}
-            onChange={handleMonthChange}
-          />
-          {monthFilter === null && (
-            <>
+        {monthFilter === null ? (
+          // Mobile: 2-column layout — ENSO + calendar tucked under the play
+          // button so the row above isn't wasted vertical space. Desktop: the
+          // wrappers `display: contents` away so everything flows into a single
+          // centered row.
+          <div className="mt-2.5 flex items-start gap-3 sm:mt-3 sm:items-center sm:justify-center sm:gap-5">
+            <div className="flex w-9 shrink-0 flex-col items-center gap-2 sm:contents">
+              {enso?.series && enso.series.length > 0 && (
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={ensoBandOpen}
+                  aria-label={
+                    ensoBandOpen ? "Hide ENSO sparkline" : "Show ENSO sparkline"
+                  }
+                  title="El Niño–Southern Oscillation — NOAA Oceanic Niño Index"
+                  onClick={() => setEnsoBandOpen((v) => !v)}
+                  className={`group flex h-7 cursor-pointer flex-col items-center gap-1 rounded-md sm:h-auto sm:flex-row sm:gap-1.5 ${FOCUS}`}
+                >
+                  <span className="text-[10px] font-medium uppercase tracking-wide text-white/55 transition group-hover:text-white/90">
+                    ENSO
+                  </span>
+                  <span
+                    className={`relative inline-block h-3.5 w-7 rounded-full transition ${
+                      ensoBandOpen ? "bg-indigo-500/80" : "bg-white/15"
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full bg-white shadow-sm transition-all ${
+                        ensoBandOpen ? "left-[1rem]" : "left-0.5"
+                      }`}
+                    />
+                  </span>
+                </button>
+              )}
+              <MonthPicker
+                value={monthFilter}
+                years={years}
+                defaultMonth={defaultMonth}
+                onChange={handleMonthChange}
+              />
+            </div>
+            <div className="flex min-w-0 flex-1 flex-col items-center gap-2 sm:contents">
               <WindowSelect value={windowMonths} onChange={setWindowMonths} />
               <SpeedSelect value={playbackSpeed} onChange={setPlaybackSpeed} />
-            </>
-          )}
-        </div>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-2.5 flex justify-center sm:mt-3">
+            <MonthPicker
+              value={monthFilter}
+              years={years}
+              defaultMonth={defaultMonth}
+              onChange={handleMonthChange}
+            />
+          </div>
+        )}
         <div className="mt-2 text-center text-[11px] leading-snug tabular-nums text-white/45 sm:text-xs">
           {loading ? (
             "Loading events…"

@@ -133,7 +133,7 @@ export default function EnsoStrip({
   return (
     <div
       className={`absolute right-4 top-4 z-10 px-3 py-2.5 sm:px-3.5 ${PANEL} ${
-        panelOpen && signalOpen ? "w-72 max-w-[calc(100vw-2rem)]" : "w-44 sm:w-52"
+        panelOpen && signalOpen ? "w-72 max-w-[calc(100vw-2rem)]" : "w-52"
       }`}
     >
       <button
@@ -153,7 +153,7 @@ export default function EnsoStrip({
             ENSO
           </span>
           <span
-            className="ml-auto text-xs font-semibold"
+            className="ml-auto whitespace-nowrap text-xs font-semibold"
             style={{ color: meta.hex }}
           >
             {label}
@@ -174,7 +174,7 @@ export default function EnsoStrip({
             label="Oceanic Niño Index — a 3-month average of sea-surface temperature in the highlighted Pacific region."
           >
             <span
-              className="cursor-help border-b border-dotted border-white/30 text-[11px] text-white/45"
+              className="cursor-help whitespace-nowrap border-b border-dotted border-white/30 text-[11px] text-white/45"
               onMouseEnter={() => onHoverNino34?.(true)}
               onMouseLeave={() => onHoverNino34?.(false)}
             >
@@ -256,7 +256,7 @@ export default function EnsoStrip({
               label="The latest single month of sea-surface temperature in the highlighted Pacific region."
             >
               <span
-                className="cursor-help border-b border-dotted border-white/30 text-[11px] text-white/45"
+                className="cursor-help whitespace-nowrap border-b border-dotted border-white/30 text-[11px] text-white/45"
                 onMouseEnter={() => onHoverNino34?.(true)}
                 onMouseLeave={() => onHoverNino34?.(false)}
               >
