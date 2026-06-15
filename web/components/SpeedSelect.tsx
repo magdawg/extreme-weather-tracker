@@ -19,7 +19,7 @@ export default function SpeedSelect({
 }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="text-[11px] font-medium uppercase tracking-wide text-white/45">
+      <span className="hidden text-[11px] font-medium uppercase tracking-wide text-white/45 sm:inline">
         Speed
       </span>
       <div className={SEGMENT}>

@@ -8,11 +8,11 @@ CREATE TABLE IF NOT EXISTS events (
     id              BIGSERIAL PRIMARY KEY,
 
     -- provenance
-    source          TEXT        NOT NULL,            -- 'gdacs' | 'firms' | 'open-meteo'
+    source          TEXT        NOT NULL,            -- 'gdacs' | 'firms' | 'open-meteo' | 'noaa-crw' | 'noaa-oisst' | 'open-meteo-marine' | 'copernicus-marine' | 'gbif' | 'gfw' | 'openaq'
     source_event_id TEXT        NOT NULL,            -- stable id within that source
 
     -- classification
-    hazard_type     TEXT        NOT NULL,            -- 'storm'|'flood'|'wildfire'|'heat'|'drought'
+    hazard_type     TEXT        NOT NULL,            -- 'storm'|'flood'|'wildfire'|'heat'|'drought'|'coral_bleach'|'marine_heat'|'swell'|'mortality'|'deforestation'|'air_quality'
     title           TEXT,
     severity_raw    TEXT,                            -- source's own label, e.g. 'Orange', 'Red'
     intensity_norm  DOUBLE PRECISION,                -- 0..1 unified scale for color/size

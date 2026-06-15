@@ -3,7 +3,13 @@ export type HazardType =
   | "flood"
   | "wildfire"
   | "heat"
-  | "drought";
+  | "drought"
+  | "coral_bleach"
+  | "marine_heat"
+  | "swell"
+  | "mortality"
+  | "deforestation"
+  | "air_quality";
 
 export interface EventProperties {
   source: string;

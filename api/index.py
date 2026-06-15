@@ -21,7 +21,11 @@ from fastapi.middleware.gzip import GZipMiddleware
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
-VALID_HAZARDS = {"storm", "flood", "wildfire", "heat", "drought"}
+VALID_HAZARDS = {
+    "storm", "flood", "wildfire", "heat", "drought",
+    "coral_bleach", "marine_heat", "swell",
+    "mortality", "deforestation", "air_quality",
+}
 
 # Ingestion runs every 12h, so the dataset changes slowly. Cache aggressively
 # on Vercel's edge (12h s-maxage matches the ingestion cadence) so that on

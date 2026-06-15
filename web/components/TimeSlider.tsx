@@ -103,9 +103,11 @@ export default function TimeSlider({
     <div className="flex flex-col gap-1.5">
       {hasBand && (
         // Column widths mirror the controls row below (play button + start
-        // date label) so the band lines up exactly with the slider.
+        // date label) so the band lines up exactly with the slider. The
+        // start-date and end-date spacers collapse to zero on mobile to match
+        // the slider row, which hides its own date labels there.
         <div className="flex items-center gap-2 sm:gap-3">
-          <div className="flex w-9 shrink-0 items-center justify-center">
+          <div className="flex w-8 shrink-0 items-center justify-center sm:w-9">
             {onShowEnsoInfo && (
               <button
                 type="button"
@@ -117,7 +119,7 @@ export default function TimeSlider({
               </button>
             )}
           </div>
-          <div className="flex w-[4.5rem] shrink-0 flex-col items-start gap-0.5 text-[10px] leading-none text-white/45">
+          <div className="hidden w-[4.5rem] shrink-0 flex-col items-start gap-0.5 text-[10px] leading-none text-white/45 sm:flex">
             <span className="flex items-center gap-1">
               <span
                 className="h-1.5 w-1.5 rounded-full"
@@ -136,7 +138,7 @@ export default function TimeSlider({
           <div className="min-w-0 flex-1">
             <EnsoBand oni={oni!} minMs={minMs} maxMs={maxMs} />
           </div>
-          <span className="w-[4.5rem] shrink-0" aria-hidden="true" />
+          <span className="hidden w-[4.5rem] shrink-0 sm:inline" aria-hidden="true" />
         </div>
       )}
 
@@ -146,16 +148,18 @@ export default function TimeSlider({
           aria-label={playing ? "Pause playback" : "Play forward in time"}
           aria-pressed={playing}
           title={playing ? "Pause" : "Play forward in time"}
-          className={`h-9 w-9 shrink-0 ${ICON_BTN} ${
+          className={`h-8 w-8 shrink-0 sm:h-9 sm:w-9 ${ICON_BTN} ${
             playing
               ? "border-indigo-400/40 bg-indigo-500/25 text-indigo-100 hover:bg-indigo-500/35"
               : ""
           }`}
         >
-          {playing ? <PauseIcon size={15} /> : <PlayIcon size={15} />}
+          {playing ? <PauseIcon size={14} /> : <PlayIcon size={14} />}
         </button>
 
-        <span className="w-[4.5rem] shrink-0 whitespace-nowrap text-[11px] tabular-nums leading-tight text-white/45 sm:text-xs">
+        {/* Date labels are redundant with the status text on mobile, so hide
+            them under sm to give the slider rail more room. */}
+        <span className="hidden w-[4.5rem] shrink-0 whitespace-nowrap text-xs tabular-nums leading-tight text-white/45 sm:inline">
           {fmt(minMs)}
         </span>
 
@@ -177,7 +181,7 @@ export default function TimeSlider({
         />
 
         <span
-          className={`w-[4.5rem] shrink-0 whitespace-nowrap text-right text-[11px] tabular-nums leading-tight sm:text-xs ${
+          className={`shrink-0 whitespace-nowrap text-right text-[11px] tabular-nums leading-tight sm:w-[4.5rem] sm:text-xs ${
             atNow ? "font-semibold text-indigo-200" : "text-white/80"
           }`}
         >

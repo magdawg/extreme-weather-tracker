@@ -21,7 +21,7 @@ export default function WindowSelect({
 }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="text-[11px] font-medium uppercase tracking-wide text-white/45">
+      <span className="hidden text-[11px] font-medium uppercase tracking-wide text-white/45 sm:inline">
         Window
       </span>
       <div className={SEGMENT}>

@@ -10,6 +10,13 @@ load_dotenv()
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 FIRMS_MAP_KEY = os.environ.get("FIRMS_MAP_KEY", "")
 
+# Spike-source credentials. Each source short-circuits to an empty list when
+# its key is missing, so missing keys never kill the run — they just skip.
+OPENAQ_API_KEY = os.environ.get("OPENAQ_API_KEY", "")
+GFW_API_KEY = os.environ.get("GFW_API_KEY", "")
+CMEMS_USERNAME = os.environ.get("CMEMS_USERNAME", "")
+CMEMS_PASSWORD = os.environ.get("CMEMS_PASSWORD", "")
+
 # How many days back each source should pull on every run.
 LOOKBACK_DAYS = int(os.environ.get("LOOKBACK_DAYS", "7"))
 

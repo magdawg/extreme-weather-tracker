@@ -14,7 +14,18 @@ import time
 import config
 import db
 import enso
-from sources import firms, gdacs, temperature
+from sources import (
+    air_quality,
+    copernicus_waves,
+    coral_bleach,
+    deforestation,
+    firms,
+    gbif,
+    gdacs,
+    marine_heat,
+    swell,
+    temperature,
+)
 
 
 def run_gdacs() -> list:
@@ -57,6 +68,29 @@ def run_temperature_backfill(from_year: int | None = None) -> int:
     return total
 
 
+def run_coral_bleach_backfill(from_year: int | None = None) -> int:
+    """Same streaming pattern as temperature: yield + upsert one year at a time.
+    NOAA CRW ERDDAP windows are small (one CSV per reef-year), so this is fast
+    even for the full 2021→today span."""
+    total = 0
+    for year, events in coral_bleach.fetch_backfill(from_year=from_year):
+        n = _upsert(events)
+        total += n
+        print(f"[coral_bleach] {year}: upserted {n} events ({total} so far)")
+    return total
+
+
+def run_marine_heat_backfill(from_year: int | None = None) -> int:
+    """Same pattern again. ERDDAP fetches are chunked monthly inside each year
+    so we never pull a full-year cube in one CSV (would be tens of MB)."""
+    total = 0
+    for year, events in marine_heat.fetch_backfill(from_year=from_year):
+        n = _upsert(events)
+        total += n
+        print(f"[marine_heat] {year}: upserted {n} events ({total} so far)")
+    return total
+
+
 def run_firms() -> list:
     key = config.require("FIRMS_MAP_KEY", config.FIRMS_MAP_KEY)
     return firms.fetch(
@@ -73,10 +107,49 @@ def run_temperature() -> list:
     return temperature.fetch(lookback_days=config.LOOKBACK_DAYS)
 
 
+# --- Spike sources (ocean / biosphere / secondary impact) -------------------
+# Kept thin and threshold-based for now; see each module's docstring for the
+# clean-upgrade path. Failing one source must never kill the run.
+
+def run_coral_bleach() -> list:
+    return coral_bleach.fetch(lookback_days=config.LOOKBACK_DAYS)
+
+
+def run_marine_heat() -> list:
+    return marine_heat.fetch(lookback_days=3)
+
+
+def run_swell() -> list:
+    return swell.fetch(lookback_days=3)
+
+
+def run_copernicus_waves() -> list:
+    return copernicus_waves.fetch(lookback_days=2)
+
+
+def run_gbif() -> list:
+    return gbif.fetch(lookback_days=30)
+
+
+def run_deforestation() -> list:
+    return deforestation.fetch(lookback_days=config.LOOKBACK_DAYS)
+
+
+def run_air_quality() -> list:
+    return air_quality.fetch()
+
+
 SOURCES = {
     "gdacs": run_gdacs,
     "firms": run_firms,
     "temperature": run_temperature,
+    "coral_bleach": run_coral_bleach,
+    "marine_heat": run_marine_heat,
+    "swell": run_swell,
+    "copernicus_waves": run_copernicus_waves,
+    "gbif": run_gbif,
+    "deforestation": run_deforestation,
+    "air_quality": run_air_quality,
 }
 
 # ENSO is not an Event source — it writes its own enso_oni table, not events —
@@ -106,8 +179,9 @@ def main() -> int:
     parser.add_argument(
         "--backfill",
         action="store_true",
-        help="GDACS (back to 2015) and temperature (back to 2021): one-shot "
-        "deep history pull (idempotent). Other sources ignore it.",
+        help="GDACS (back to 2015), temperature / coral_bleach / marine_heat "
+        "(back to 2021): one-shot deep history pull (idempotent). Other "
+        "sources ignore it.",
     )
     parser.add_argument(
         "--from-year",
@@ -135,6 +209,10 @@ def main() -> int:
                 n = run_gdacs_backfill()
             elif name == "temperature" and args.backfill:
                 n = run_temperature_backfill(from_year=args.from_year)
+            elif name == "coral_bleach" and args.backfill:
+                n = run_coral_bleach_backfill(from_year=args.from_year)
+            elif name == "marine_heat" and args.backfill:
+                n = run_marine_heat_backfill(from_year=args.from_year)
             else:
                 events = SOURCES[name]()
                 n = _upsert(events)

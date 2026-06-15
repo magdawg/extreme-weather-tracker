@@ -27,9 +27,10 @@ export const segmentBtn = (on: boolean) =>
   }`;
 
 // A selectable list row (hazards / sources): tinted + ringed when on,
-// dimmed-but-reachable when off.
+// dimmed-but-reachable when off. Tighter padding on mobile so 5+ rows fit in
+// the (limited) panel height without scrolling.
 export const listRow = (on: boolean) =>
-  `flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition ${FOCUS} ${
+  `flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition sm:gap-2.5 sm:px-2.5 sm:py-2 ${FOCUS} ${
     on
       ? "bg-white/[0.08] text-white ring-1 ring-white/10"
       : "text-white/55 hover:bg-white/[0.04] hover:text-white/90"

@@ -415,12 +415,14 @@ export default function Page() {
         <EnsoInfoDialog topic={ensoInfo} onClose={() => setEnsoInfo(null)} />
       )}
 
-      {/* Left control panel */}
+      {/* Left control panel. On mobile the bottom slider eats ~13rem at the
+          foot of the screen — cap the panel's max-height so it always stops
+          above the slider and the lower sections stay scroll-reachable. */}
       <div
-        className={`ewt-scroll absolute left-4 top-4 z-10 flex max-w-[calc(100vw-2rem)] flex-col ${PANEL} ${
+        className={`ewt-scroll absolute left-3 top-3 z-10 flex max-w-[calc(100vw-1.5rem)] flex-col sm:left-4 sm:top-4 sm:max-w-[calc(100vw-2rem)] ${PANEL} ${
           panelOpen
-            ? "w-72 max-h-[calc(100vh-2rem)] overflow-y-auto p-4"
-            : "w-auto px-4 py-3 sm:w-72"
+            ? "w-72 max-h-[calc(100vh-14rem)] overflow-y-auto p-3 sm:max-h-[calc(100vh-2rem)] sm:p-4"
+            : "w-auto px-3 py-2 sm:w-72 sm:px-4 sm:py-3"
         }`}
       >
         <button
@@ -448,11 +450,11 @@ export default function Page() {
 
         {panelOpen && (
           <div id="panel-body">
-            <p className="mt-1 text-xs leading-relaxed text-white/55">
+            <p className="mt-1 hidden text-xs leading-relaxed text-white/55 sm:block">
               Patterns, transitions &amp; intensity of extreme weather worldwide.
             </p>
 
-            <div className="my-3 h-px bg-white/10" />
+            <div className="my-2 h-px bg-white/10 sm:my-3" />
             <Section title="Hazards">
               <HazardFilter
                 active={active}
@@ -462,7 +464,7 @@ export default function Page() {
               />
             </Section>
 
-            <div className="my-3 h-px bg-white/10" />
+            <div className="my-2 h-px bg-white/10 sm:my-3" />
             <Section title="Severity">
               <SeverityFilter
                 active={severity}
@@ -472,7 +474,7 @@ export default function Page() {
               />
             </Section>
 
-            <div className="my-3 h-px bg-white/10" />
+            <div className="my-2 h-px bg-white/10 sm:my-3" />
             <Section title="Data source" defaultOpen={false}>
               <SourceFilter
                 active={activeSources}
@@ -482,7 +484,7 @@ export default function Page() {
               />
             </Section>
 
-            <div className="my-3 h-px bg-white/10" />
+            <div className="my-2 h-px bg-white/10 sm:my-3" />
             <Section title="Display" defaultOpen={false}>
               <button
                 type="button"
@@ -505,7 +507,7 @@ export default function Page() {
                 </span>
               </button>
 
-              <div className="my-3 h-px bg-white/10" />
+              <div className="my-2 h-px bg-white/10 sm:my-3" />
               <button
                 type="button"
                 role="switch"
@@ -537,7 +539,7 @@ export default function Page() {
       </div>
 
       {/* Bottom time slider */}
-      <div className={`absolute bottom-3 left-1/2 z-10 w-[min(640px,calc(100vw-1.5rem))] -translate-x-1/2 px-3 py-2.5 sm:bottom-4 sm:px-4 sm:py-3 ${PANEL}`}>
+      <div className={`absolute bottom-3 left-1/2 z-10 w-[min(640px,calc(100vw-1.5rem))] -translate-x-1/2 px-2.5 py-2 sm:bottom-4 sm:px-4 sm:py-3 ${PANEL}`}>
         {!loading && monthFilter === null && (
           <TimeSlider
             minMs={minMs}
@@ -556,8 +558,8 @@ export default function Page() {
           // button so the row above isn't wasted vertical space. Desktop: the
           // wrappers `display: contents` away so everything flows into a single
           // centered row.
-          <div className="mt-2.5 flex items-start gap-3 sm:mt-3 sm:items-center sm:justify-center sm:gap-5">
-            <div className="flex w-9 shrink-0 flex-col items-center gap-2 sm:contents">
+          <div className="mt-2 flex items-start gap-2.5 sm:mt-3 sm:items-center sm:justify-center sm:gap-5">
+            <div className="flex w-8 shrink-0 flex-col items-center gap-1.5 sm:contents sm:w-9">
               {enso?.series && enso.series.length > 0 && (
                 <button
                   type="button"
@@ -593,13 +595,13 @@ export default function Page() {
                 onChange={handleMonthChange}
               />
             </div>
-            <div className="flex min-w-0 flex-1 flex-col items-center gap-2 sm:contents">
+            <div className="flex min-w-0 flex-1 flex-col items-center gap-1.5 sm:contents">
               <WindowSelect value={windowMonths} onChange={setWindowMonths} />
               <SpeedSelect value={playbackSpeed} onChange={setPlaybackSpeed} />
             </div>
           </div>
         ) : (
-          <div className="mt-2.5 flex justify-center sm:mt-3">
+          <div className="mt-2 flex justify-center sm:mt-3">
             <MonthPicker
               value={monthFilter}
               years={years}
@@ -608,7 +610,7 @@ export default function Page() {
             />
           </div>
         )}
-        <div className="mt-2 text-center text-[11px] leading-snug tabular-nums text-white/45 sm:text-xs">
+        <div className="mt-1.5 text-center text-[11px] leading-snug tabular-nums text-white/45 sm:mt-2 sm:text-xs">
           {loading ? (
             "Loading events…"
           ) : monthFilter ? (

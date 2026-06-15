@@ -11,11 +11,20 @@ from datetime import datetime
 from typing import Any
 
 # Hazard taxonomy used across the whole app.
+# When you add a hazard, also update: api/index.py (VALID_HAZARDS),
+# web/lib/types.ts (HazardType), web/lib/hazards.ts (HAZARDS, HAZARD_ORDER).
 HAZARD_STORM = "storm"
 HAZARD_FLOOD = "flood"
 HAZARD_WILDFIRE = "wildfire"
 HAZARD_HEAT = "heat"
 HAZARD_DROUGHT = "drought"
+# Spike-era additions (ocean / biosphere / secondary impact).
+HAZARD_CORAL_BLEACH = "coral_bleach"   # NOAA Coral Reef Watch BAA level
+HAZARD_MARINE_HEAT = "marine_heat"     # OISST-derived marine heatwave
+HAZARD_SWELL = "swell"                 # extreme significant wave height
+HAZARD_MORTALITY = "mortality"         # GBIF clustered die-off signal
+HAZARD_DEFORESTATION = "deforestation" # GFW integrated alerts
+HAZARD_AIR_QUALITY = "air_quality"     # OpenAQ hazardous-tier PM2.5
 
 
 @dataclass
