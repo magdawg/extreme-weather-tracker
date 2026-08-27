@@ -129,11 +129,35 @@ def _max_ingested(table: str) -> Optional[datetime]:
     return rows[0]["m"] if rows and rows[0]["m"] else None
 
 
+def _max_events_freshness() -> Optional[datetime]:
+    """For /events: take the greater of events.ingested_at and
+    event_donations.resolved_at, so a donations-only resolver run still
+    invalidates the edge cache. The donations table may not exist yet on
+    older deploys — fall back to events alone if so."""
+    try:
+        rows = query(
+            """
+            SELECT GREATEST(
+              COALESCE((SELECT MAX(ingested_at) FROM events), '-infinity'::timestamptz),
+              COALESCE((SELECT MAX(resolved_at) FROM event_donations), '-infinity'::timestamptz)
+            ) AS m
+            """,
+            (),
+        )
+    except Exception:
+        return _max_ingested("events")
+    return rows[0]["m"] if rows and rows[0]["m"] else None
+
+
 def _check_freshness(
     request: Request, response: Response, table: str
 ) -> Optional[Response]:
     """Stamp Cache-Control + Last-Modified; return a 304 if the client is current."""
-    last_modified = _max_ingested(table)
+    # For /events the freshness window also covers donations updates; for
+    # other tables just use their own ingested_at.
+    last_modified = (
+        _max_events_freshness() if table == "events" else _max_ingested(table)
+    )
     response.headers["Cache-Control"] = CACHE_CONTROL
     if not last_modified:
         return None
@@ -201,7 +225,9 @@ def events(
     if from_ and to and from_ > to:
         raise HTTPException(400, "'from' must be <= 'to'")
 
-    where = ["geom IS NOT NULL", "intensity_norm >= %s"]
+    # All clauses reference columns on `events`, which is aliased `e` in the
+    # query below so the LEFT JOIN to `event_donations` is unambiguous.
+    where = ["e.geom IS NOT NULL", "e.intensity_norm >= %s"]
     params: list = [min_intensity]
 
     if hazard is not None:
@@ -210,28 +236,28 @@ def events(
             raise HTTPException(
                 400, f"hazard must be one of: {sorted(VALID_HAZARDS)}"
             )
-        where.append("hazard_type = ANY(%s)")
+        where.append("e.hazard_type = ANY(%s)")
         params.append(hazards)
     if from_:
-        where.append("COALESCE(ended_at, started_at) >= %s")
+        where.append("COALESCE(e.ended_at, e.started_at) >= %s")
         params.append(from_)
     if to:
-        where.append("started_at <= %s")
+        where.append("e.started_at <= %s")
         params.append(to)
     if bbox:
         try:
-            w, s, e, n = (float(x) for x in bbox.split(","))
+            w, s, e_lon, n = (float(x) for x in bbox.split(","))
         except ValueError:
             raise HTTPException(400, "bbox must be 'west,south,east,north'")
-        if not (-180 <= w <= 180 and -180 <= e <= 180):
+        if not (-180 <= w <= 180 and -180 <= e_lon <= 180):
             raise HTTPException(400, "bbox longitudes must be in [-180, 180]")
         if not (-90 <= s <= 90 and -90 <= n <= 90):
             raise HTTPException(400, "bbox latitudes must be in [-90, 90]")
         if s > n:
             raise HTTPException(400, "bbox south must be <= north")
-        # Note: we allow w > e for envelopes crossing the antimeridian.
-        where.append("geom && ST_MakeEnvelope(%s,%s,%s,%s,4326)")
-        params.extend([w, s, e, n])
+        # Note: we allow w > e_lon for envelopes crossing the antimeridian.
+        where.append("e.geom && ST_MakeEnvelope(%s,%s,%s,%s,4326)")
+        params.extend([w, s, e_lon, n])
 
     params.append(limit)
     # Order by recency so that any truncation drops the oldest events
@@ -240,34 +266,58 @@ def events(
     # only needs what the tooltip and filters read. `url` is included so the
     # detail panel can link to the provider's report page for the specific
     # event (currently only populated by GDACS).
+    #
+    # The LEFT JOIN to event_donations is on PK = FK so it's a per-row index
+    # probe — sub-ms even at the LIMIT 50000 ceiling. Most events have no
+    # donation row, and the joined columns come back NULL; we only ship them
+    # under the `donations` key when at least one source matched. That keeps
+    # the payload from bloating for events without help links.
     sql = f"""
-        SELECT source, hazard_type, title, severity_raw, intensity_norm,
-               started_at, country, url,
-               ST_AsGeoJSON(geom) AS geojson
-        FROM events
+        SELECT e.source, e.hazard_type, e.title, e.severity_raw, e.intensity_norm,
+               e.started_at, e.country, e.url,
+               ST_AsGeoJSON(e.geom) AS geojson,
+               d.ifrc_url, d.ifrc_appeal_requested, d.ifrc_appeal_funded,
+               d.gg_url,   d.gg_title, d.gg_org
+        FROM events e
+        LEFT JOIN event_donations d ON d.event_id = e.id
         WHERE {' AND '.join(where)}
-        ORDER BY started_at DESC NULLS LAST
+        ORDER BY e.started_at DESC NULLS LAST
         LIMIT %s
     """
     rows = query(sql, tuple(params))
 
-    features = [
-        {
+    def _donations(r: dict) -> Optional[dict]:
+        if not any(r.get(k) for k in ("ifrc_url", "gg_url")):
+            return None
+        return {
+            "ifrc_url":              r.get("ifrc_url"),
+            "ifrc_appeal_requested": r.get("ifrc_appeal_requested"),
+            "ifrc_appeal_funded":    r.get("ifrc_appeal_funded"),
+            "gg_url":                r.get("gg_url"),
+            "gg_title":              r.get("gg_title"),
+            "gg_org":                r.get("gg_org"),
+        }
+
+    features = []
+    for r in rows:
+        props = {
+            "source": r["source"],
+            "hazard_type": r["hazard_type"],
+            "title": r["title"],
+            "severity_raw": r["severity_raw"],
+            "intensity_norm": r["intensity_norm"],
+            "started_at": r["started_at"].isoformat() if r["started_at"] else None,
+            "country": r["country"],
+            "url": r["url"],
+        }
+        donations = _donations(r)
+        if donations:
+            props["donations"] = donations
+        features.append({
             "type": "Feature",
             "geometry": json.loads(r["geojson"]),
-            "properties": {
-                "source": r["source"],
-                "hazard_type": r["hazard_type"],
-                "title": r["title"],
-                "severity_raw": r["severity_raw"],
-                "intensity_norm": r["intensity_norm"],
-                "started_at": r["started_at"].isoformat() if r["started_at"] else None,
-                "country": r["country"],
-                "url": r["url"],
-            },
-        }
-        for r in rows
-    ]
+            "properties": props,
+        })
     return {"type": "FeatureCollection", "features": features}
 
 

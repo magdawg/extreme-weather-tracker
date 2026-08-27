@@ -6,7 +6,7 @@ import { HAZARDS } from "@/lib/hazards";
 import { SEVERITIES, tierOf } from "@/lib/severity";
 import { SOURCES, isKnownSource } from "@/lib/sources";
 import { PANEL, FOCUS } from "@/lib/ui";
-import { HazardIcon, CloseIcon, ExternalLinkIcon } from "@/components/icons";
+import { HazardIcon, CloseIcon, ExternalLinkIcon, HeartIcon } from "@/components/icons";
 import type { EventProperties } from "@/lib/types";
 
 // The full event the user clicked, plus its map position (for the coordinate
@@ -162,6 +162,91 @@ export default function EventDetails({
         >
           <span>
             Source: <span className="font-medium text-white/90">{source.label}</span>
+          </span>
+          <ExternalLinkIcon size={14} className="shrink-0 text-white/50" />
+        </a>
+      )}
+
+      <HelpSection donations={p.donations ?? null} />
+    </div>
+  );
+}
+
+// Format a USD amount as e.g. "$1.2M" / "$420K" / "$3,500". The IFRC API
+// returns plain integers; we never show cents because appeal totals are
+// always whole-dollar.
+function fmtMoney(n: number): string {
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`;
+  if (n >= 1_000)     return `$${Math.round(n / 1_000)}K`;
+  return `$${n.toLocaleString()}`;
+}
+
+/**
+ * "Want to help?" panel — rendered only when a donation resolver produced a
+ * match. Honest framing: IFRC GO is a Red Cross *response* page (not a donate
+ * button); GlobalGiving IS a donate page. We label them differently so we
+ * never overpromise.
+ */
+function HelpSection({
+  donations,
+}: {
+  donations: import("@/lib/types").EventDonations | null;
+}) {
+  if (!donations) return null;
+  const hasIfrc = !!donations.ifrc_url;
+  const hasGg   = !!donations.gg_url;
+  if (!hasIfrc && !hasGg) return null;
+
+  const req = donations.ifrc_appeal_requested ?? 0;
+  const fund = donations.ifrc_appeal_funded ?? 0;
+  const pctFunded = req > 0 ? Math.min(100, Math.round((fund / req) * 100)) : null;
+
+  return (
+    <div className="mt-3 rounded-lg border border-white/10 bg-white/5 p-3">
+      <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-white/50">
+        <HeartIcon size={12} />
+        <span>Want to help?</span>
+      </div>
+
+      {hasGg && (
+        <a
+          href={donations.gg_url ?? "#"}
+          target="_blank"
+          rel="noreferrer"
+          title={
+            donations.gg_title
+              ? `Open "${donations.gg_title}" on GlobalGiving`
+              : "Open this project on GlobalGiving"
+          }
+          className={`flex items-center justify-between gap-2 rounded-md bg-rose-500/15 px-3 py-2 text-xs font-medium text-rose-100 transition hover:bg-rose-500/25 ${FOCUS}`}
+        >
+          <span className="min-w-0 truncate">
+            Donate via GlobalGiving
+            {donations.gg_org && (
+              <span className="ml-1 font-normal text-rose-200/70">
+                — {donations.gg_org}
+              </span>
+            )}
+          </span>
+          <ExternalLinkIcon size={14} className="shrink-0 opacity-70" />
+        </a>
+      )}
+
+      {hasIfrc && (
+        <a
+          href={donations.ifrc_url ?? "#"}
+          target="_blank"
+          rel="noreferrer"
+          title="IFRC GO — Red Cross emergency response coordination page"
+          className={`mt-2 flex items-center justify-between gap-2 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/75 transition hover:bg-white/10 hover:text-white ${FOCUS}`}
+        >
+          <span className="min-w-0 truncate">
+            Red Cross is responding
+            {pctFunded !== null && (
+              <span className="ml-1.5 text-white/55">
+                · {fmtMoney(fund)} of {fmtMoney(req)} ({pctFunded}%)
+              </span>
+            )}
           </span>
           <ExternalLinkIcon size={14} className="shrink-0 text-white/50" />
         </a>

@@ -51,6 +51,32 @@ CREATE TABLE IF NOT EXISTS enso_oni (
     PRIMARY KEY (year, season)                    -- lets ingestion upsert idempotently
 );
 
+-- Donation links per event, populated by post-ingestion resolvers that match
+-- events against IFRC GO (Red Cross emergencies, open API) and GlobalGiving
+-- (NGO projects with public donate pages, free API). One row per event when at
+-- least one source produces a hit; events without a match simply have no row.
+-- The PK doubles as a FK to events(id), so the JOIN in /events is an index
+-- probe per row (no extra index needed). ON DELETE CASCADE keeps donations from
+-- outliving their event. See SPIKE_DONATIONS.md for the matching strategy.
+CREATE TABLE IF NOT EXISTS event_donations (
+    event_id              BIGINT PRIMARY KEY REFERENCES events(id) ON DELETE CASCADE,
+
+    -- IFRC GO (open API, no auth). Public URL pattern:
+    -- https://go.ifrc.org/emergencies/{event_id}
+    ifrc_url              TEXT,
+    ifrc_appeal_requested BIGINT,                    -- total $ requested across appeals
+    ifrc_appeal_funded    BIGINT,                    -- total $ raised so far
+
+    -- GlobalGiving (free API, key required). Public URL:
+    -- https://www.globalgiving.org/projects/{project_id}/
+    -- Only the donate URL + display strings; we never proxy payments.
+    gg_url                TEXT,
+    gg_title              TEXT,
+    gg_org                TEXT,
+
+    resolved_at           TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Companion to enso_oni: the monthly Niño-3.4 SST anomaly (ERSSTv5, fixed
 -- 1991–2020 base). The ONI is a 3-month running mean, so its newest value
 -- always trails the calendar by ~1 month; this single-month anomaly is the

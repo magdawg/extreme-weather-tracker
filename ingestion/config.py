@@ -17,6 +17,16 @@ GFW_API_KEY = os.environ.get("GFW_API_KEY", "")
 CMEMS_USERNAME = os.environ.get("CMEMS_USERNAME", "")
 CMEMS_PASSWORD = os.environ.get("CMEMS_PASSWORD", "")
 
+# Post-ingestion donation resolvers. IFRC GO has no key. GlobalGiving requires
+# a free key registered at https://www.globalgiving.org/aboutus/register/ —
+# the resolver short-circuits when the key is missing, so the IFRC half still
+# runs without GG configured.
+GLOBALGIVING_API_KEY = os.environ.get("GLOBALGIVING_API_KEY", "")
+
+# How far back the resolvers consider events worth re-checking. Older events
+# rarely get a new appeal launched, so we cap the work.
+DONATIONS_LOOKBACK_DAYS = int(os.environ.get("DONATIONS_LOOKBACK_DAYS", "180"))
+
 # How many days back each source should pull on every run.
 LOOKBACK_DAYS = int(os.environ.get("LOOKBACK_DAYS", "7"))
 

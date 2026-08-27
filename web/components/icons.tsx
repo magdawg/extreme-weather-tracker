@@ -91,6 +91,13 @@ export const ExternalLinkIcon = (p: IconProps) => (
   </Svg>
 );
 
+// Used on the "Donate" CTA in the event detail panel. Lucide-style heart.
+export const HeartIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M19 14.5c1.7-1.5 3-3.2 3-5.5 0-2.5-2-4.5-4.5-4.5-1.8 0-3 1-4.5 2.5C11.5 5.5 10.3 4.5 8.5 4.5 6 4.5 4 6.5 4 9c0 2.3 1.3 4 3 5.5l5 5z" />
+  </Svg>
+);
+
 export const CalendarIcon = (p: IconProps) => (
   <Svg {...p}>
     <rect x="3.5" y="5" width="17" height="15.5" rx="2.5" />

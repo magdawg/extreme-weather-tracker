@@ -11,6 +11,26 @@ export type HazardType =
   | "deforestation"
   | "air_quality";
 
+/**
+ * Donation / help links surfaced when a post-ingestion resolver matched this
+ * event to an external campaign or response page. The property is OMITTED
+ * when no resolver hit — so checking `props.donations` truthiness is enough
+ * to know whether to render the Help section in EventDetails.
+ *
+ * `ifrc_*` comes from IFRC GO (Red Cross emergency portal). The page is an
+ * authoritative "response is underway" record, NOT a consumer donate flow.
+ * `gg_*` comes from GlobalGiving and IS a real donate page. See
+ * SPIKE_DONATIONS.md for the matching strategy and coverage caveats.
+ */
+export interface EventDonations {
+  ifrc_url?: string | null;
+  ifrc_appeal_requested?: number | null;
+  ifrc_appeal_funded?: number | null;
+  gg_url?: string | null;
+  gg_title?: string | null;
+  gg_org?: string | null;
+}
+
 export interface EventProperties {
   source: string;
   hazard_type: HazardType;
@@ -22,6 +42,9 @@ export interface EventProperties {
   // Per-event "more info" link from the provider (currently only GDACS).
   // Falls back to the provider's homepage in the UI when null.
   url: string | null;
+  // Present only when at least one donation resolver found a match — usually
+  // absent. See EventDonations for the field semantics.
+  donations?: EventDonations | null;
 }
 
 export interface EventFeature {

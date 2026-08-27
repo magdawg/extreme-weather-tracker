@@ -14,6 +14,8 @@ import time
 import config
 import db
 import enso
+from resolvers import globalgiving as gg_resolver
+from resolvers import ifrc as ifrc_resolver
 from sources import (
     air_quality,
     copernicus_waves,
@@ -152,6 +154,35 @@ SOURCES = {
     "air_quality": run_air_quality,
 }
 
+# Donation resolvers — post-ingestion enrichers, not event sources. They
+# annotate existing events with IFRC GO / GlobalGiving links and write to the
+# `event_donations` table. Selectable via `--source donations` and included in
+# a full run. Each resolver opens its own short-lived connections internally
+# (select → close → HTTP loop → open → upsert → close) — never hold a
+# connection idle across an HTTP fetch; the GG country sweep runs for many
+# minutes, well past Neon's idle timeout.
+def run_donations() -> int:
+    total = 0
+    # IFRC first — it never fails on missing config (open API), so it's the
+    # part of donations we can always count on.
+    n = ifrc_resolver.run(config.DATABASE_URL, lookback_days=config.DONATIONS_LOOKBACK_DAYS)
+    total += n
+    print(f"[donations] IFRC GO: upserted {n} rows")
+    # GlobalGiving — short-circuits when GLOBALGIVING_API_KEY is unset, so a
+    # missing key is silent (return 0), not a failure.
+    if config.GLOBALGIVING_API_KEY:
+        n = gg_resolver.run(
+            config.DATABASE_URL,
+            api_key=config.GLOBALGIVING_API_KEY,
+            lookback_days=config.DONATIONS_LOOKBACK_DAYS,
+        )
+        total += n
+        print(f"[donations] GlobalGiving: upserted {n} rows")
+    else:
+        print("[donations] GlobalGiving: skipped (GLOBALGIVING_API_KEY unset)")
+    return total
+
+
 # ENSO is not an Event source — it writes its own enso_oni table, not events —
 # so it lives outside SOURCES and runs as a separate step. It's selectable via
 # `--source enso` and is included in a full (no --source) run.
@@ -173,8 +204,9 @@ def main() -> int:
     parser.add_argument(
         "--source",
         nargs="*",
-        choices=list(SOURCES) + ["enso"],
-        help="subset of sources (also: 'enso' for the ENSO/ONI climate index)",
+        choices=list(SOURCES) + ["enso", "donations"],
+        help="subset of sources (also: 'enso' for the ENSO/ONI climate index; "
+        "'donations' for the post-ingestion IFRC GO + GlobalGiving resolvers)",
     )
     parser.add_argument(
         "--backfill",
@@ -193,7 +225,7 @@ def main() -> int:
     args = parser.parse_args()
 
     config.require("DATABASE_URL", config.DATABASE_URL)
-    selected = args.source or list(SOURCES) + ["enso"]
+    selected = args.source or list(SOURCES) + ["enso", "donations"]
 
     total = 0
     for name in selected:
@@ -203,6 +235,13 @@ def main() -> int:
                 # Not an Event source: writes enso_oni and returns a row count.
                 n = run_enso()
                 print(f"[enso] upserted {n} ONI + monthly Niño-3.4 rows in {time.time() - started:.1f}s")
+                continue
+            if name == "donations":
+                # Not an Event source: enriches existing events with donation
+                # links. Runs after all sources so the latest events are in
+                # the table when we resolve.
+                n = run_donations()
+                print(f"[donations] total {n} rows in {time.time() - started:.1f}s")
                 continue
             if name == "gdacs" and args.backfill:
                 # Streams + writes per year; connects per batch internally.
