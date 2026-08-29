@@ -247,15 +247,20 @@ def _fetch_search_window(etype: str, fromdate: date, todate: date) -> list[dict]
 
 
 def _fetch_map() -> list[dict]:
-    """MAP returns all currently-active events in one (unpaginated) call."""
-    resp = requests.get(MAP_URL, timeout=60, headers=_HEADERS)
-    resp.raise_for_status()
-    if resp.status_code == 204 or not resp.text.strip():
-        return []
-    try:
-        return resp.json().get("features", [])
-    except ValueError:
-        return []
+    """MAP returns all currently-active events. GDACS now requires exactly one
+    `eventtype` per call (a bare or multi-value request 400s), so we fetch
+    once per hazard type and merge."""
+    features: list[dict] = []
+    for etype in TYPE_MAP:
+        resp = requests.get(MAP_URL, params={"eventtype": etype}, timeout=60, headers=_HEADERS)
+        resp.raise_for_status()
+        if resp.status_code == 204 or not resp.text.strip():
+            continue
+        try:
+            features.extend(resp.json().get("features", []))
+        except ValueError:
+            continue
+    return features
 
 
 def _to_event(feat: dict) -> Event | None:
