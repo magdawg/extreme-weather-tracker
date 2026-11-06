@@ -120,8 +120,8 @@ def fetch(lookback_days: int = 30) -> list[Event]:
                 title=f"Mortality cluster: {b['count']} records ({kw})",
                 severity_raw=f"{b['count']} occurrences in {week}",
                 intensity_norm=clamp01(math.log1p(b["count"]) / math.log1p(RECORDS_SATURATION)),
-                started_at=b["first"].replace(tzinfo=timezone.utc) if b["first"] else None,
-                ended_at=b["last"].replace(tzinfo=timezone.utc) if b["last"] else None,
+                started_at=_utc_midnight(b["first"]),
+                ended_at=_utc_midnight(b["last"]),
                 country=country,
                 url=f"https://www.gbif.org/occurrence/search?q={kw}",
                 metadata={
@@ -169,6 +169,14 @@ def _search_paged(keyword: str, fromdate, todate) -> list[dict]:
         if body.get("endOfRecords", True) or len(results) < PAGE_SIZE:
             break
     return out
+
+
+def _utc_midnight(day):
+    """`date` → tz-aware `datetime` at 00:00 UTC. (`date.replace` has no
+    `tzinfo` kwarg, so it can't be done in place.)"""
+    if day is None:
+        return None
+    return datetime.combine(day, datetime.min.time(), tzinfo=timezone.utc)
 
 
 def _parse_event_date(value):
