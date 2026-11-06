@@ -71,6 +71,12 @@ _RATE_LIMIT_BACKOFF_S = (30, 60, 120, 300)
 # 60-batch backfill, prevents most 429s in the first place.
 _INTER_BATCH_SLEEP_S = 3
 
+# Forecast batches answer in well under a second, but from GitHub runners
+# 2–3 of 10 batches per run hang until the read timeout. A short timeout plus
+# one retry recovers most of them and keeps a stuck batch from costing 2 min.
+_FORECAST_TIMEOUT_S = (10, 30)
+_FORECAST_RETRY_SLEEP_S = 10
+
 # Oldest date a --backfill run reaches back to. Matches GDACS for consistency.
 BACKFILL_FROMDATE = date(2021, 1, 1)
 
@@ -116,11 +122,21 @@ def fetch(lookback_days: int = 7) -> list[Event]:
     batches = list(_chunked(_cities(), BATCH_SIZE))
     for i, batch in enumerate(batches):
         try:
-            dailies = _forecast_batch(batch)
+            try:
+                dailies = _forecast_batch(batch)
+            except (requests.ConnectionError, requests.Timeout) as exc:
+                print(
+                    f"[temperature] batch {i} {type(exc).__name__}, retrying "
+                    f"in {_FORECAST_RETRY_SLEEP_S}s",
+                    file=sys.stderr,
+                )
+                time.sleep(_FORECAST_RETRY_SLEEP_S)
+                dailies = _forecast_batch(batch)
         except requests.HTTPError as exc:
             errors[str(exc.response.status_code)] += len(batch)
             continue
-        except requests.RequestException:
+        except requests.RequestException as exc:
+            print(f"[temperature] batch {i} failed: {type(exc).__name__}: {exc}", file=sys.stderr)
             errors["network"] += len(batch)
             continue
         for (slug, name, lat, lon), daily in zip(batch, dailies):
@@ -197,7 +213,7 @@ def _forecast_batch(batch: list[City]) -> list[dict]:
                 "forecast_days": 7,
                 "timezone": "UTC",
             },
-            timeout=120,
+            timeout=_FORECAST_TIMEOUT_S,
         ),
         len(batch),
     )
@@ -223,7 +239,9 @@ def _archive_batch(batch: list[City], start: date, end: date) -> list[dict]:
     )
 
 
-def _get_with_backoff(url: str, params: dict, timeout: int) -> requests.Response:
+def _get_with_backoff(
+    url: str, params: dict, timeout: float | tuple[float, float]
+) -> requests.Response:
     """GET that retries on 429 (rate-limited) using the fixed backoff schedule.
     Non-429 responses pass through immediately (caller calls raise_for_status).
     After the last retry, the 429 response itself is returned so the caller
