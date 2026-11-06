@@ -72,10 +72,13 @@ _RATE_LIMIT_BACKOFF_S = (30, 60, 120, 300)
 _INTER_BATCH_SLEEP_S = 3
 
 # Forecast batches answer in well under a second, but from GitHub runners
-# 2–3 of 10 batches per run hang until the read timeout. A short timeout plus
-# one retry recovers most of them and keeps a stuck batch from costing 2 min.
+# roughly every third batch stalls during connection setup — it looks like
+# Open-Meteo throttling cloud IPs by stalling instead of 429ing. Spacing the
+# routine sweep out (it's only 10 batches) and backing off before the one
+# retry gives that window time to clear; the short timeout caps a stuck batch.
 _FORECAST_TIMEOUT_S = (10, 30)
-_FORECAST_RETRY_SLEEP_S = 10
+_FORECAST_BATCH_SLEEP_S = 15
+_FORECAST_RETRY_SLEEP_S = 30
 
 # Oldest date a --backfill run reaches back to. Matches GDACS for consistency.
 BACKFILL_FROMDATE = date(2021, 1, 1)
@@ -142,7 +145,7 @@ def fetch(lookback_days: int = 7) -> list[Event]:
         for (slug, name, lat, lon), daily in zip(batch, dailies):
             events.extend(_classify(slug, name, lat, lon, daily))
         if i < len(batches) - 1:
-            time.sleep(_INTER_BATCH_SLEEP_S)
+            time.sleep(_FORECAST_BATCH_SLEEP_S)
     if errors:
         print(f"[temperature] forecast errors {dict(errors)}", file=sys.stderr)
     return events
