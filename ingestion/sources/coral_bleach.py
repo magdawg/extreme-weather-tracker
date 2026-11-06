@@ -26,6 +26,7 @@ import csv
 import io
 import math
 import sys
+import time
 from collections.abc import Iterator
 from datetime import date, datetime, timedelta, timezone
 
@@ -78,12 +79,17 @@ BAA_SATURATION = 5.0  # for the 0..1 intensity scale
 # story "this is the world since the 2021 La Niña" reads coherently.
 BACKFILL_FROMDATE = date(2021, 1, 1)
 
+# Wall-clock cap on a scheduled fetch. When CRW falls back to its lagging
+# mirror every reef 404s, each after ~35 s — 23 of those alone blow the
+# workflow's 20-minute job timeout. Backfill is run by hand and stays uncapped.
+FETCH_BUDGET_S = 240
+
 
 def fetch(lookback_days: int = 7) -> list[Event]:
     """One ERDDAP query per reef across the last lookback window."""
     today = datetime.now(timezone.utc).date()
     fromdate = today - timedelta(days=max(1, lookback_days))
-    return _fetch_window(fromdate, today)
+    return _fetch_window(fromdate, today, budget_s=FETCH_BUDGET_S)
 
 
 def fetch_backfill(from_year: int | None = None) -> Iterator[tuple[int, list[Event]]]:
@@ -109,11 +115,21 @@ def fetch_backfill(from_year: int | None = None) -> Iterator[tuple[int, list[Eve
         yield year, _fetch_window(win_from, win_to)
 
 
-def _fetch_window(fromdate: date, todate: date) -> list[Event]:
+def _fetch_window(
+    fromdate: date, todate: date, budget_s: float | None = None
+) -> list[Event]:
     """Per-reef ERDDAP query across [fromdate, todate]; flatten to Events."""
     events: list[Event] = []
     misses = 0
-    for slug, name, lat, lon in REEFS:
+    started = time.monotonic()
+    for i, (slug, name, lat, lon) in enumerate(REEFS):
+        if budget_s is not None and time.monotonic() - started > budget_s:
+            print(
+                f"[coral_bleach] {budget_s:.0f}s budget spent, skipping "
+                f"{len(REEFS) - i} remaining reefs",
+                file=sys.stderr,
+            )
+            break
         try:
             rows = _query_reef(lat, lon, fromdate, todate)
         except requests.HTTPError as exc:
@@ -125,6 +141,15 @@ def _fetch_window(fromdate: date, todate: date) -> list[Event]:
                 continue
             print(f"[coral_bleach] {slug} HTTP error: {exc}", file=sys.stderr)
             continue
+        except requests.ConnectionError as exc:
+            # Host unreachable (seen from GitHub runners): every remaining reef
+            # would burn its own timeout and push the run past the job limit.
+            print(
+                f"[coral_bleach] {slug} connection failed, skipping remaining "
+                f"reefs: {exc}",
+                file=sys.stderr,
+            )
+            break
         except requests.RequestException as exc:
             print(f"[coral_bleach] {slug} fetch failed: {exc}", file=sys.stderr)
             continue
@@ -169,10 +194,11 @@ def _query_reef(lat: float, lon: float, fromdate, todate) -> list[tuple[datetime
     )
     # 60 s caught two reefs mid-backfill — CRW's redirect dance to PacIOOS
     # adds latency that pushes the slow reefs past it. 120 s covers the long
-    # tail without hanging a stuck run.
+    # tail without hanging a stuck run. Connect gets its own short timeout so
+    # an unreachable host fails fast instead of eating the full 120 s.
     resp = requests.get(
         f"{ERDDAP_URL}?{selector}",
-        timeout=120,
+        timeout=(10, 120),
         headers=_HEADERS,
     )
     resp.raise_for_status()

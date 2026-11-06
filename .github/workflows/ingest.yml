@@ -9,6 +9,10 @@ concurrency:
   group: ingest
   cancel-in-progress: false
 
+permissions:
+  contents: read
+  actions: write # keepalive step re-enables this workflow
+
 jobs:
   ingest:
     runs-on: ubuntu-latest
@@ -30,3 +34,12 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           FIRMS_MAP_KEY: ${{ secrets.FIRMS_MAP_KEY }}
         run: python run.py
+
+      # GitHub disables scheduled workflows after 60 days without a commit.
+      # Re-enabling via the API resets that clock, so a quiet repo keeps
+      # ingesting. Runs even if ingestion failed.
+      - name: Keep schedule alive
+        if: always() && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow enable ingest.yml --repo "${{ github.repository }}" || true

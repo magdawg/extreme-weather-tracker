@@ -249,10 +249,12 @@ def _fetch_search_window(etype: str, fromdate: date, todate: date) -> list[dict]
 def _fetch_map() -> list[dict]:
     """MAP returns all currently-active events. GDACS now requires exactly one
     `eventtype` per call (a bare or multi-value request 400s), so we fetch
-    once per hazard type and merge."""
+    once per hazard type and merge. A type with no active events 404s."""
     features: list[dict] = []
     for etype in TYPE_MAP:
         resp = requests.get(MAP_URL, params={"eventtype": etype}, timeout=60, headers=_HEADERS)
+        if resp.status_code == 404:
+            continue
         resp.raise_for_status()
         if resp.status_code == 204 or not resp.text.strip():
             continue
